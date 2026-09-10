@@ -1,0 +1,511 @@
+---
+# Copyright 2026 Cloudera, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Ensure inventory readiness
+  hosts: all
+  gather_facts: false
+  tags:
+    - readiness
+  tasks:
+    - name: Check if host is ready
+      ansible.builtin.wait_for_connection:
+        timeout: 60
+
+- name: Configure Cloudera Manager and Reports Manager databases
+  hosts: postgresql
+  gather_facts: true
+  become: true
+  tags:
+    - postgresql
+  vars:
+    cloudera_manager_database_type: postgresql
+    database_type: postgresql
+    database_host: localhost
+    ### Set in config.yml as global vars
+    # database_admin_user:
+    # database_admin_password:
+    # reports_manager_password:
+  roles:
+    - cloudera.exe.prereq_cm_database
+    - cloudera.exe.prereq_reportsmanager
+
+- name: Enable the Cloudera Manager package repository
+  hosts: deployment
+  gather_facts: true
+  become: true
+  tags:
+    - cm_repo
+  vars:
+    cm_license_path: "{{ lookup('env', 'CDP_LICENSE_FILE')}}"
+    cloudera_manager_repo_username: "{{ lookup('cloudera.cluster.cm_license', cm_license_path).uuid }}"
+    cloudera_manager_repo_password: "{{ lookup('cloudera.cluster.cm_license', cm_license_path).password }}"
+  roles:
+    - cloudera.exe.cm_repo
+
+- name: Enable and configure host for Cloudera Manager
+  hosts: cloudera_manager
+  gather_facts: true
+  become: true
+  tags:
+    - cm_server
+  vars:
+    cloudera_manager_database_host: "{{ groups['postgresql'] | first }}"
+    cloudera_manager_database_port: 5432
+    cloudera_manager_host: "{{ inventory_hostname }}"
+  roles:
+    - cloudera.exe.prereq_cloudera_manager
+    - cloudera.exe.postgresql_client
+    - cloudera.exe.cm_server
+    - cloudera.exe.cm_agent
+
+- name: Provision the Caddy reverse proxy entry for Cloudera Manager
+  hosts: reverse_proxy
+  gather_facts: false
+  become: true
+  tags:
+    - reverse_proxy
+    - proxy
+  vars:
+    proxy_host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+    caddy_service: caddy
+  handlers:
+    - name: Reload Caddy
+      ansible.builtin.service:
+        name: "{{ caddy_service }}"
+        state: reloaded
+  tasks:
+    - name: Test for existing reverse proxy entry to Cloudera Manager
+      ansible.builtin.uri:
+        url: "http://{{ proxy_host }}"
+        status_code:
+          - -1
+          - 200
+          - 502
+        ca_path: "{{ caddy_ca_pem | default(omit) }}"
+        validate_certs: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+      become: false
+      delegate_to: localhost
+      register: __cm_available
+
+    - name: Install Cloudera Manager reverse proxy entry
+      when: __cm_available.status == -1
+      ansible.builtin.template:
+        src: cloudera_manager.caddyfile.j2
+        dest: /etc/caddy/Caddyfile.d/cloudera_manager.caddyfile
+        mode: "0644"
+      vars:
+        cloudera_manager_external_fqdn: "{{ proxy_host }}"
+        cloudera_manager_fqdn: "{{ groups['cloudera_manager'] | first }}"
+        cloudera_manager_scheme: http
+        cloudera_manager_port: 7180
+      notify: Reload Caddy
+
+- name: Configure the Cloudera Manager administrator credentials
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - cm_password
+  vars:
+    proxy_host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+  module_defaults:
+    group/cloudera.cluster.cm:
+      host: "{{ proxy_host }}"
+      port: 80
+      username: admin
+      password: "{{ cloudera_manager_admin_password }}"
+      ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+      verify_tls: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+  tasks:
+    - name: Ensure Cloudera Manager server is ready
+      ansible.builtin.uri:
+        url: "http://{{ proxy_host }}"
+        ca_path: "{{ caddy_ca_pem | default(omit) }}"
+        validate_certs: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+      register: __cm_available
+      until: __cm_available.status == 200
+      retries: 36
+      delay: 5
+
+    - name: Test default administrator password
+      ansible.builtin.uri:
+        url: "http://{{ proxy_host }}/api/version"
+        status_code:
+          - 200
+          - 401
+        url_username: admin
+        url_password: admin
+        ca_path: "{{ caddy_ca_pem | default(omit) }}"
+        validate_certs: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+      register: __admin_default
+
+    - name: Set Cloudera Manager administrator password
+      when: __admin_default.status == 200
+      cloudera.cluster.cm_resource:
+        # Inherit from module defaults
+        # host:
+        # port:
+        # username:
+        path: /users/admin
+        method: PUT
+        password: admin # Override module defaults
+        body:
+          password: "{{ cloudera_manager_admin_password }}"
+      no_log: true
+
+    - name: Test defined administrator password
+      when: __admin_default.status == 401
+      ansible.builtin.uri:
+        url: "http://{{ proxy_host }}/api/version"
+        status_code:
+          - 200
+          - 401
+        url_username: admin
+        url_password: "{{ cloudera_manager_admin_password }}"
+        ca_path: "{{ caddy_ca_pem | default(omit) }}"
+        validate_certs: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+      no_log: true
+      register: __admin_defined
+
+    - name: Fail if both default and defined admin passwords are invalid
+      when:
+        - __admin_defined.status is defined
+        - __admin_defined.status == 401
+      ansible.builtin.fail:
+        msg: |
+          Unable to set the administrator credentials for 'admin'.
+          The credentials have already been set outside of this automation;
+          please check the defined password for the account.
+
+- name: Enable the Cloudera Manager server license
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - cm_license
+  vars:
+    proxy_host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+  module_defaults:
+    group/cloudera.cluster.cm:
+      host: "{{ proxy_host }}"
+      port: 80
+      username: admin
+      password: "{{ cloudera_manager_admin_password }}"
+      ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+      verify_tls: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+  tasks:
+    - name: Install the Cloudera Manager server license
+      cloudera.cluster.cm_license:
+        license: "{{ lookup('env', 'CDP_LICENSE_FILE') }}"
+
+- name: Install the Cloudera Manager agents on the cluster hosts
+  hosts: cluster
+  gather_facts: true
+  become: true
+  tags:
+    - cm_agent
+  vars:
+    cloudera_manager_host: "{{ groups['cloudera_manager'] | first }}"
+  roles:
+    - cloudera.exe.cm_agent
+
+- name: Enable reverse proxy usage for Cloudera Manager console
+  hosts: reverse_proxy
+  gather_facts: false
+  become: true
+  tags:
+    - proxy
+  vars:
+    proxy_host: "cm.{{ ansible_host }}.{{ public_domain }}"
+  module_defaults:
+    group/cloudera.cluster.cm:
+      host: "{{ proxy_host }}"
+      port: 80
+      username: admin
+      password: "{{ cloudera_manager_admin_password }}"
+      ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+      verify_tls: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+  tasks:
+    - name: Configure the Frontend URL for the proxy
+      cloudera.cluster.cm_config:
+        parameters:
+          frontend_url: "https://{{ proxy_host }}"
+        message: Configured Frontend URL for the reverse proxy
+      delegate_to: localhost
+      become: false
+
+- name: Enable the Cloudera Management service
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - cm_service
+  vars:
+    proxy_host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+  module_defaults:
+    group/cloudera.cluster.cm:
+      host: "{{ proxy_host }}"
+      port: 80
+      username: admin
+      password: "{{ cloudera_manager_admin_password }}"
+      ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+      verify_tls: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+  tasks:
+    - name: Configure Cloudera Management service
+      cloudera.cluster.cm_service:
+        state: started
+        role_config_groups:
+          - type: SERVICEMONITOR
+            config:
+              firehose_non_java_memory_bytes: 6442450944 # 6gb
+          - type: REPORTSMANAGER
+            config:
+              headlamp_database_type: postgresql
+              headlamp_database_host: "{{ groups['postgresql'] | first }}"
+              headlamp_database_name: rman # default for prereq_reportsmanager
+              headlamp_database_user: rman # default for prereq_reportsmanager
+              headlamp_database_password: "{{ reports_manager_password }}"
+        roles:
+          - type: SERVICEMONITOR
+            cluster_hostname: "{{ groups['cloudera_manager'] | first }}"
+          - type: HOSTMONITOR
+            cluster_hostname: "{{ groups['cloudera_manager'] | first }}"
+          - type: EVENTSERVER
+            cluster_hostname: "{{ groups['cloudera_manager'] | first }}"
+          - type: ALERTPUBLISHER
+            cluster_hostname: "{{ groups['cloudera_manager'] | first }}"
+
+- name: Enable LDAP Authentication for Cloudera Manager console
+  hosts: localhost
+  gather_facts: false
+  tags:
+    - external_auth
+  vars:
+    proxy_host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+    base_dn: "{{ dns_domain.split('.') | map('regex_replace', '^(.*)$', 'dc=\\1') | join(',') }}"
+  module_defaults:
+    group/cloudera.cluster.cm:
+      port: 80
+      username: admin
+      password: "{{ cloudera_manager_admin_password }}"
+      ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+      verify_tls: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+  tasks:
+    - name: Configure External Authentication
+      cloudera.cluster.cm_config:
+        host: "{{ proxy_host }}"
+        parameters:
+          auth_backend_order: DB_THEN_LDAP
+          ldap_type: LDAP
+          ldap_url: "ldaps://{{ groups['freeipa'] | first }}"
+          ldap_bind_dn: "uid=admin,cn=users,cn=accounts,{{ base_dn }}"
+          ldap_bind_pw: "{{ common_password }}"
+          ldap_user_search_base: "cn=users,cn=accounts,{{ base_dn }}"
+          ldap_user_search_filter: "(uid={0})"
+          ldap_group_search_base: "cn=groups,cn=accounts,{{ base_dn }}"
+          ldap_group_search_filter: "(&(member={0})(objectClass=posixgroup)(! ( | (cn=admins) (cn=ipausers) ) ))"
+      register: __cm_external_auth
+
+    - name: Create external user mapping with admin permissions
+      cloudera.cluster.external_user_mappings:
+        host: "{{ proxy_host }}"
+        port: 80
+        username: admin
+        password: "{{ cloudera_manager_admin_password }}"
+        ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+        verify_tls: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+        state: "present"
+        name: "{{ auth_item.name }}"
+        type: "{{ auth_item.type }}"
+        auth_roles: "{{ auth_item.auth_roles }}"
+      loop_control:
+        loop_var: auth_item
+        label: "{{ auth_item.name }}"
+      loop: "{{ external_auth_user_mappings }}" # Defined in group_vars/all.yml
+
+- name: Copy Caddy self-signed root CA to CM host for AutoTLS
+  hosts: cloudera_manager
+  gather_facts: false
+  become: true
+  tags:
+    - cm_autotls
+  tasks:
+    - name: Copy Caddy self-signed CA certificate
+      when: caddy_self_signed and caddy_ca_pem is undefined
+      ansible.builtin.copy:
+        src: "{{ [playbook_dir, '..', name_prefix + '-caddy-root.crt'] | path_join }}"
+        dest: /etc/pki/tls/certs/caddy-self-signed-root.crt
+        mode: "0644"
+
+    - name: Read content of files
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop: "{{ ['/etc/ipa/ca.crt'] + (['/etc/pki/tls/certs/caddy-self-signed-root.crt'] if (caddy_self_signed is defined and caddy_self_signed and caddy_ca_pem is undefined) else []) }}"
+      register: __ca_file_contents
+
+    - name: Combine the content and write to a new file
+      ansible.builtin.copy:
+        content: >-
+          {% for item in __ca_file_contents.results -%} {{ item.content | b64decode }}{%- endfor %}
+        dest: /etc/pki/tls/certs/ca_bundle.crt
+        mode: "0644"
+
+- name: Enable Cloudera Manager AutoTLS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - cm_autotls
+  vars:
+    proxy_host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+    private_key_file: "{{ groups['proxied_servers'] | map('extract', hostvars, 'ansible_ssh_private_key_file') | first }}"
+  tasks:
+    - name: Configure AutoTLS
+      cloudera.cluster.cm_autotls:
+        host: "{{ proxy_host }}"
+        port: 80
+        username: admin
+        password: "{{ cloudera_manager_admin_password }}"
+        ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+        verify_tls: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+        state: present
+        trusted_ca_certs: "/etc/pki/tls/certs/ca_bundle.crt"
+        connection_user_name: "{{ groups['cloudera_manager'] | map('extract', hostvars, 'ansible_user') | first }}"
+        connection_private_key: "{{ lookup('ansible.builtin.file', private_key_file) }}"
+      register: __cm_auto_tls
+
+    - name: Record status of AutoTLS
+      ansible.builtin.set_fact:
+        auto_tls_changed: "{{ __cm_auto_tls.changed }}"
+
+- name: Restart Cloudera Manager Service agent on cluster hosts
+  hosts: cluster
+  become: true
+  tags:
+    - cm_autotls
+  tasks:
+    - name: Restart services when required
+      when: hostvars['localhost']['auto_tls_changed']
+      block:
+        - name: Restart Cloudera Manager agent
+          ansible.builtin.service:
+            name: cloudera-scm-agent
+            state: restarted
+
+- name: Restart Cloudera Manager Service server on Cloudera Manager host
+  hosts: cloudera_manager
+  gather_facts: true
+  become: true
+  tags:
+    - cm_autotls
+    - external_auth
+  tasks:
+    - name: Restart services when required
+      when: (hostvars['localhost']['auto_tls_changed'] or (__cm_external_auth is defined and __cm_external_auth.changed))
+      block:
+        - name: Restart Cloudera Manager server
+          ansible.builtin.service:
+            name: cloudera-scm-server
+            state: restarted
+
+        - name: Wait for Cloudera Manager server to restart
+          ansible.builtin.wait_for:
+            port: 7183
+            delay: 10
+            timeout: 240
+            sleep: 10
+
+- name: Configure Caddy Cloudera Manager entry for TLS
+  hosts: reverse_proxy
+  gather_facts: true
+  become: true
+  tags:
+    - reverse_proxy
+    - proxy
+    - cm_autotls
+  vars:
+    proxy_host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+    caddy_service: caddy
+  handlers:
+    - name: Reload Caddy
+      ansible.builtin.service:
+        name: "{{ caddy_service }}"
+        state: reloaded
+  tasks:
+    - name: Update Cloudera Manager API reverse proxy
+      ansible.builtin.template:
+        src: cloudera_manager.caddyfile.j2
+        dest: /etc/caddy/Caddyfile.d/cloudera_manager.caddyfile
+        mode: "0644"
+      vars:
+        cloudera_manager_external_fqdn: "{{ proxy_host }}"
+        cloudera_manager_fqdn: "{{ groups['cloudera_manager'] | first }}"
+        cloudera_manager_scheme: https
+        cloudera_manager_port: 7183
+      notify: Reload Caddy
+
+- name: Restart the Cloudera Management service
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - cm_autotls
+  vars:
+    proxy_host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+  module_defaults:
+    group/cloudera.cluster.cm:
+      host: "{{ proxy_host }}"
+      port: 80
+      username: admin
+      password: "{{ cloudera_manager_admin_password }}"
+      ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+      verify_tls: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+  tasks:
+    - name: Restart Cloudera Management service
+      when: auto_tls_changed
+      block:
+        - name: Restart Cloudera Management service
+          cloudera.cluster.cm_service:
+            state: restarted
+
+        - name: Clear status of AutoTLS
+          ansible.builtin.set_fact:
+            auto_tls_changed: false
+
+- name: Enable Cloudera Manager Kerberos
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags:
+    - cm_kerberos
+  vars:
+    proxy_host: "cm.{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+  tasks:
+    - name: Setup Kerberos
+      cloudera.cluster.cm_kerberos:
+        host: "{{ proxy_host }}"
+        port: 80
+        username: admin
+        password: "{{ cloudera_manager_admin_password }}"
+        ssl_ca_cert: "{{ caddy_ca_pem | default(omit) }}"
+        verify_tls: "{{ not (caddy_self_signed is defined and caddy_self_signed) }}"
+        security_realm: "{{ kerberos_realm }}"
+        kdc_type: "Red Hat IPA"
+        krb_enc_types: "aes256-cts aes128-cts rc4-hmac"
+        kdc_admin_host: "{{ groups['freeipa'] | first }}"
+        kdc_host: "{{ groups['freeipa'] | first }}"
+        kdc_admin_user: "admin@{{ kerberos_realm }}"
+        kdc_admin_password: "{{ freeipa_password | default(lookup('env', 'IPA_PASSWORD', default='Undefined')) }}"
+      register: __cm_kerberos

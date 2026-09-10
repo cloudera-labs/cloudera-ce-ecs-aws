@@ -1,0 +1,75 @@
+# Copyright 2026 Cloudera, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+
+version: 3
+
+images:
+  base_image:
+    name: ghcr.io/cloudera-labs/cldr-runner:latest
+
+options:
+  package_manager_path: /usr/bin/microdnf
+
+dependencies:
+  python_interpreter:
+    package_system: python3.12
+    python_path: /usr/bin/python3.12
+  galaxy: ../requirements.yml
+  python: requirements.txt
+  system: bindep.txt
+  exclude:
+    system:
+      - openshift-clients
+
+additional_build_files:
+  - src: bashrc
+    dest: assets
+
+additional_build_steps:
+  prepend_final:
+    - ARG BUILD_VERSION="latest"
+    - ARG BUILD_DATE="unknown"
+    - ARG BUILD_REVISION="unknown"
+    - ARG TF_VERSION="1.15.6"
+    - ENV BUILD_VERSION="${BUILD_VERSION}"
+    - ENV BUILD_DATE="${BUILD_DATE}"
+    - ENV BUILD_REVISION="${BUILD_REVISION}"
+    - ENV TF_VERSION="${TF_VERSION}"
+    - LABEL org.opencontainers.image.authors="Cloudera Labs <cloudera-labs@cloudera.com>"
+      org.opencontainers.image.vendor="Cloudera, Inc."
+      org.opencontainers.image.url="https://<YOUR_GIT_HOST>/<YOUR_REPO_NAME>/blob/main/README.md"
+      org.opencontainers.image.source="https://<YOUR_GIT_HOST>/<YOUR_REPO_NAME>.git"
+      org.opencontainers.image.licenses=Apache-2.0
+      org.opencontainers.image.title="<YOUR_IMAGE_NAME>"
+      org.opencontainers.image.description="Ansible Execution Environment for Cloudera on Premise Community Edition."
+      org.opencontainers.image.created="${BUILD_DATE}"
+      org.opencontainers.image.version="${BUILD_VERSION}"
+      org.opencontainers.image.revision="${BUILD_REVISION}"
+      org.label-schema.name="<YOUR_IMAGE_NAME>"
+      org.label-schema.vendor="Cloudera, Inc."
+      org.label-schema.license="Apache-2.0"
+      org.label-schema.build-date="${BUILD_DATE}"
+      io.buildah.version=""
+  append_final:
+    # Bash environment configuration
+    - ADD _build/assets/bashrc /runner/.bashrc
+    # Install Terraform directly
+    - >-
+      RUN curl -L "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_$(uname -m | sed 's/aarch64/arm64/;s/x86_64/amd64/').zip" -o /tmp/terraform.zip
+      && $PYCMD -c "import zipfile; zipfile.ZipFile('/tmp/terraform.zip').extract('terraform', '/tmp/')"
+      && mv /tmp/terraform /usr/local/bin/terraform
+      && chmod +x /usr/local/bin/terraform
+      && rm /tmp/terraform.zip

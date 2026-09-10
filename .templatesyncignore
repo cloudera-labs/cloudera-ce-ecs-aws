@@ -1,0 +1,97 @@
+# Copyright 2026 Cloudera, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Allowlist: only sync these files from the template
+*
+
+# Playbooks (all topologies)
+:!playbooks/infrastructure.yml
+:!playbooks/infrastructure-teardown.yml
+:!playbooks/services.yml
+:!playbooks/cms.yml
+:!playbooks/ozone-cluster.yml
+
+# Playbooks (base, ECS)
+:!playbooks/pause.yml
+:!playbooks/resume.yml
+
+# Playbooks (base)
+:!playbooks/kafka-cluster.yml
+:!playbooks/flink-cluster.yml
+:!playbooks/nifi-cluster.yml
+:!playbooks/nifi2.0-cluster.yml
+:!playbooks/csa-cluster.yml
+
+# Playbooks (ECS)
+:!playbooks/ecs-cluster.yml
+:!playbooks/cai-workbench.yml
+:!playbooks/cde-service.yml
+:!playbooks/cdw-service.yml
+
+# Playbooks (onenode)
+:!playbooks/one-node-cluster.yml
+:!playbooks/post-cluster.yml
+:!playbooks/efm-setup.yml
+
+# Templates (all topologies)
+:!playbooks/templates/cloudera_manager.caddyfile.j2
+:!playbooks/templates/deployment.html.j2
+:!playbooks/templates/freeipa.caddyfile.j2
+:!playbooks/templates/ipa-rewrite.conf.j2
+:!playbooks/templates/knox.caddyfile.j2
+:!playbooks/templates/pgadmin.caddyfile.j2
+:!playbooks/templates/summary.caddyfile.j2
+:!playbooks/templates/tf_cluster_aws.tfvars.j2
+
+# Templates (base, onenode)
+:!playbooks/templates/grafana.caddyfile.j2
+:!playbooks/templates/prometheus.caddyfile.j2
+
+# Templates (ECS)
+:!playbooks/templates/cloudera_ecs.caddyfile.j2
+:!playbooks/templates/cloudera_cai_workbench.caddyfile.j2
+:!playbooks/templates/cloudera_cde.caddyfile.j2
+
+# Templates (onenode)
+:!playbooks/templates/efm.caddyfile.j2
+
+# Terraform (all topologies)
+:!tf_cluster_aws/main.tf
+:!tf_cluster_aws/variables.tf
+:!tf_cluster_aws/outputs.tf
+:!tf_cluster_aws/vpc.tf
+:!tf_cluster_aws/ssh.tf
+:!tf_cluster_aws/network.tf
+:!tf_cluster_aws/hosts_common.tf
+:!tf_cluster_aws/inventory.tf
+
+# Terraform (base, ECS)
+:!tf_cluster_aws/hosts_base.tf
+
+# Terraform (base)
+:!tf_cluster_aws/pricing.tf
+
+# Terraform (ECS)
+:!tf_cluster_aws/hosts_ecs.tf
+
+# Terraform (onenode)
+:!tf_cluster_aws/hosts_onenode.tf
+
+# Shared config (all topologies)
+:!inventory.yml
+:!inventory-template.yml
+:!.gitignore
+
+# Shared config (ECS, onenode)
+:!requirements.yml

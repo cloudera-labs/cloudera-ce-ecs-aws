@@ -1,0 +1,159 @@
+[project]
+name = "<YOUR_REPO_NAME_ONLY>"
+dynamic = ["version"]
+description = 'Cloudera on Premise Community Edition for AWS is an examplar deployment for development, training, workshops, and demonstrations.'
+readme = "README.md"
+requires-python = ">=3.8"
+license = "Apache-2.0"
+keywords = []
+authors = [
+  { name = "Webster Mudge", email = "wmudge@cloudera.com" },
+  { name = "Jim Enright", email = "jenright@cloudera.com" },
+  { name = "Ronald Suplina", email = "rsuplina@cloudera.com" }
+]
+classifiers = []
+dependencies = []
+
+[tool.hatch.version]
+path = "VERSION.txt"
+scheme = "semver"
+validate-bump = true
+
+[tool.hatch.envs.default]
+python = "3.12"
+detached = true
+dependencies = [
+  "pre-commit",
+  "unidecode",
+  "pytest",
+  "pytest-mock",
+  "ansible-core<2.17", # For RHEL 8 support
+  "ansible-navigator",
+  "ansible-lint",
+  "python-gnupg",
+  "cm-client",
+  "netaddr",
+  "psycopg2-binary",
+]
+
+[tool.hatch.envs.default.scripts]
+lint = [
+  "pre-commit run -a",
+  "ansible-lint --fix",
+]
+
+build-local = [
+  """
+set -e
+if command -v docker >/dev/null 2>&1; then
+  ENGINE=docker
+elif command -v podman >/dev/null 2>&1; then
+  ENGINE=podman
+else
+  echo "No container engine found: install docker or podman" >&2
+  exit 1
+fi
+_TAG=$(hatch version)
+ansible-builder build -vvv \
+  --container-runtime "$ENGINE" \
+  --no-cache \
+  -c builder/context \
+  -f builder/execution-environment.yml \
+  --build-arg BUILD_VER=$_TAG \
+  --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+  --build-arg BUILD_REVISION=$(git rev-parse HEAD) \
+  -t localhost/<YOUR_IMAGE_NAME>:$_TAG 2>&1 | tee builder/build.log
+echo "Local image ($ENGINE): localhost/<YOUR_IMAGE_NAME>:$_TAG"
+  """
+]
+
+build-publish = [
+  """
+set -e
+if command -v docker >/dev/null 2>&1; then
+  ENGINE=docker
+elif command -v podman >/dev/null 2>&1; then
+  ENGINE=podman
+else
+  echo "No container engine found: install docker or podman" >&2
+  exit 1
+fi
+_ARCH=$ARCH
+if [ -z "$_ARCH" ]; then
+  _ARCH=$(uname -m | sed 's/aarch64/arm64/;s/x86_64/amd64/')
+fi
+_RAW_TAG=$IMAGE_TAG
+if [ -z "$_RAW_TAG" ]; then
+  _RAW_TAG=$(hatch version)
+fi
+_IMAGE_TAG=$(echo "$_RAW_TAG" | sed 's/^v//')
+_IMAGE=ghcr.io/cloudera-labs/<YOUR_IMAGE_NAME>:$_IMAGE_TAG-$_ARCH
+ansible-builder build \
+  --container-runtime "$ENGINE" \
+  --no-cache \
+  -c builder/context \
+  -f builder/execution-environment.yml \
+  --build-arg BUILD_VER=$_IMAGE_TAG \
+  --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+  --build-arg BUILD_REVISION=$(git rev-parse HEAD) \
+  -t $_IMAGE
+"$ENGINE" push $_IMAGE
+echo "Published ($ENGINE): $_IMAGE"
+  """
+]
+
+build-manifest = [
+  """
+set -e
+if command -v docker >/dev/null 2>&1; then
+  ENGINE=docker
+elif command -v podman >/dev/null 2>&1; then
+  ENGINE=podman
+else
+  echo "No container engine found: install docker or podman" >&2
+  exit 1
+fi
+_RAW_TAG=$IMAGE_TAG
+if [ -z "$_RAW_TAG" ]; then
+  _RAW_TAG=$(hatch version)
+fi
+_IMAGE_TAG=$(echo "$_RAW_TAG" | sed 's/^v//')
+_REPO=ghcr.io/cloudera-labs/<YOUR_IMAGE_NAME>
+if [ "$ENGINE" = docker ]; then
+  docker buildx imagetools create \
+    -t $_REPO:$_IMAGE_TAG \
+    -t $_REPO:latest \
+    $_REPO:$_IMAGE_TAG-amd64 \
+    $_REPO:$_IMAGE_TAG-arm64
+else
+  for _t in $_IMAGE_TAG latest; do
+    if podman manifest exists $_REPO:$_t; then
+      podman manifest rm $_REPO:$_t
+    fi
+    podman manifest create $_REPO:$_t
+    podman manifest add $_REPO:$_t docker://$_REPO:$_IMAGE_TAG-amd64
+    podman manifest add $_REPO:$_t docker://$_REPO:$_IMAGE_TAG-arm64
+    podman manifest push --all $_REPO:$_t docker://$_REPO:$_t
+  done
+fi
+echo "Manifest ($ENGINE): $_REPO:$_IMAGE_TAG"
+  """
+]
+
+[tool.hatch.envs.docs]
+python = "3.12"
+detached = true
+dependencies = [
+  "zensical",
+]
+
+[tool.hatch.envs.docs.scripts]
+serve = "zensical serve"
+build = "zensical build"
+
+[build-system]
+requires = [
+  "hatchling",
+  "hatch-semver",
+]
+build-backend = "hatchling.build"

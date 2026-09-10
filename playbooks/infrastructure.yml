@@ -1,0 +1,107 @@
+---
+# Copyright 2026 Cloudera, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Provision AWS infrastructure
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: infra
+  vars:
+    tf_inventory: "{{ playbook_dir }}/../tf_cluster_aws"
+  pre_tasks:
+    - name: Verify AWS credentials are valid
+      amazon.aws.aws_caller_info:
+      register: __aws_caller_info
+      ignore_errors: true
+
+    - name: Fail if AWS credentials are expired or not configured
+      ansible.builtin.fail:
+        msg: |
+          AWS credentials are expired or not configured!
+
+          Your AWS SSO session has expired (SSO credentials expire after 8 hours).
+
+          Please refresh your credentials by running:
+          
+          1. aws sso login --profile YOUR_AWS_PROFILE
+          2. eval $(aws configure export-credentials --format env --profile YOUR_AWS_PROFILE)
+          
+          Then run this playbook again.
+      when: __aws_caller_info.failed | default(false)
+
+    - name: Validate name_prefix is a valid FQDN label (RFC 952 / RFC 1123)
+      ansible.builtin.assert:
+        that:
+          - name_prefix is regex('^[a-z][a-z0-9-]{2,5}[a-z0-9]$')
+        fail_msg: |
+          Invalid name_prefix: '{{ name_prefix }}'
+
+          name_prefix is used to construct hostnames and must be a valid FQDN label:
+            - Only lowercase letters, digits, and hyphens
+            - Must start with a letter
+            - Must not end with a hyphen
+            - Between 4 and 7 characters (hostnames append a cluster-role suffix)
+
+          Example: 'cld-test' (not 'cld_test')
+
+  tasks:
+    - name: Set Terraform variables
+      ansible.builtin.template:
+        dest: "{{ tf_inventory }}/terraform.tfvars"
+        src: "tf_cluster_aws.tfvars.j2"
+        mode: "0644"
+
+    - name: Check for existing Terraform state file
+      ansible.builtin.stat:
+        path: "{{ tf_inventory }}/terraform.tfstate"
+      register: __tf_state
+
+    - name: Provision the infrastructure
+      cloud.terraform.terraform:
+        project_path: "{{ tf_inventory }}/"
+        state: "present"
+        force_init: true # "{{ not __tf_state.stat.exists }}"
+        provider_upgrade: true
+
+    - name: Refresh the Ansible inventory from the infrastructure
+      ansible.builtin.meta: refresh_inventory
+
+- name: Ensure inventory readiness
+  hosts: all
+  gather_facts: false
+  tags: infra
+  tasks:
+    - name: Check if host is ready
+      ansible.builtin.wait_for_connection:
+        timeout: 60
+
+- name: Prepare and mount storage volumes
+  hosts: all
+  gather_facts: false
+  become: true
+  tags: infra
+  tasks:
+    - name: Convert storage_volume jsonstring variable to object
+      when: storage_volumes is defined
+      ansible.builtin.set_fact:
+        storage_volumes_fact: "{{ storage_volumes | from_json }}"
+
+    - name: Prepare storage volumes
+      when: storage_volumes_fact is defined and storage_volumes_fact | length > 0
+      ansible.builtin.import_role:
+        name: cloudera.exe.mount
+      vars:
+        mount_volumes: "{{ storage_volumes_fact }}"
+        mount_provider: "{{ infra_type }}"

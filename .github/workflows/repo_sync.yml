@@ -1,0 +1,62 @@
+# Copyright 2026 Cloudera, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Sync Playbooks from Template Repository
+
+# Sync playbooks directory from the template repository
+# Doc: https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+
+on:
+  # Allow this workflow to be manually triggered
+  workflow_dispatch:
+  # Uncomment to run on a schedule (e.g., weekly on Mondays at 1 AM)
+  # schedule:
+  #   - cron: "0 1 * * MON"
+
+env:
+  SOURCE_BRANCH: main
+  SOURCE_REPOSITORY: cloudera-labs/cloudera-ce-aws-template
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  repo-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Doc: https://github.com/marketplace/actions/checkout
+      - name: Checkout ${{ github.repository }}
+        uses: actions/checkout@v4
+        # Only run if this is not the template repository
+        if: github.repository != env.SOURCE_REPOSITORY
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Doc: https://github.com/marketplace/actions/actions-template-sync
+      - name: Sync playbooks from template repository
+        uses: AndreasAugustin/actions-template-sync@v2
+        # Only run if this is not the template repository
+        if: github.repository != env.SOURCE_REPOSITORY
+        with:
+          source_gh_token: ${{ secrets.GITHUB_TOKEN }}
+          source_repo_path: ${{ env.SOURCE_REPOSITORY }}
+          upstream_branch: ${{ env.SOURCE_BRANCH }}
+          pr_title: "[Template Sync] Update playbooks from template repository"
+          pr_body: "Automated sync of playbooks directory from template repository"
+          pr_commit_msg: "chore(template): sync playbooks from template repository"
+          pr_labels: template_sync,automated
+          # Include only specific files from the playbooks directory
+          # Note: Create a .templatesyncignore file to exclude files like ignore.yml

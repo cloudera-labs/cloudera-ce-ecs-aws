@@ -1,0 +1,55 @@
+---
+# Copyright 2026 Cloudera, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Deprovision AWS infrastructure
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: infra
+  vars:
+    tf_inventory: "{{ playbook_dir }}/../tf_cluster_aws"
+  pre_tasks:
+    - name: Verify AWS credentials are valid
+      amazon.aws.aws_caller_info:
+      register: __aws_caller_info
+      ignore_errors: true
+
+    - name: Fail if AWS credentials are expired or not configured
+      ansible.builtin.fail:
+        msg: |
+          AWS credentials are expired or not configured!
+
+          Your AWS SSO session has expired (SSO credentials expire after 8 hours).
+
+          Please refresh your credentials by running:
+          
+          1. aws sso login --profile YOUR_AWS_PROFILE
+          2. eval $(aws configure export-credentials --format env --profile YOUR_AWS_PROFILE)
+          
+          Then run this playbook again.
+      when: __aws_caller_info.failed | default(false)
+
+  tasks:
+    - name: Check for existing Terraform state file
+      ansible.builtin.stat:
+        path: "{{ tf_inventory }}/terraform.tfstate"
+      register: __tf_state
+
+    - name: Deprovision the infrastructure
+      cloud.terraform.terraform:
+        project_path: "{{ tf_inventory }}/"
+        state: absent
+        force_init: "{{ not __tf_state.stat.exists }}"
+        provider_upgrade: true

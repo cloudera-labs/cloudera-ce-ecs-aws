@@ -1,0 +1,109 @@
+# Copyright 2026 Cloudera, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+site_name: "Cloudera On Premise Community Edition"
+site_author: <YOUR_SITE_AUTHOR>
+copyright: 2026 Cloudera, Inc. All rights reserved.<br><a href="https://www.cloudera.com/legal/terms-and-conditions.html" target="_blank">Terms & Conditions |
+  </a>  <a href="https://www.cloudera.com/legal/policies.html" target="_blank"> Privacy Policy and Data Policy</a>
+repo_url: https://<YOUR_GIT_HOST>/<YOUR_REPO_NAME>
+repo_name: <YOUR_REPO_NAME>
+
+theme:
+  name: material
+  custom_dir: overrides
+  logo: assets/images/logo-cloudera-white.svg
+  favicon: assets/images/favicon.ico
+  palette:
+    - scheme: default
+      primary: '#FFFFFF'
+      accent: '#121212'
+      toggle:
+        name: Switch to dark mode
+        icon: material/weather-night
+    - scheme: slate
+      primary: '#FFFFFF'
+      accent: '#121212'
+      toggle:
+        name: Switch to light mode
+        icon: material/weather-sunny
+  features:
+    - content.code.annotate
+    - content.code.copy
+    - navigation.sections
+    - navigation.footer
+    - navigation.top
+
+docs_dir: ".."
+site_dir: "build"
+not_in_nav: |
+  mkdocs/**
+extra_css:
+  - assets/stylesheets/extra.css
+use_directory_urls: false
+
+nav:
+  - Home: 'README.md'
+  - Getting Started:
+      - Prerequisites: 'getting-started/README.md'
+      - Configuration: 'getting-started/configuration.md'
+  - Deployment:
+      - Overview: 'deployment/README.md'
+      - Infrastructure: 'deployment/infrastructure.md'
+      - Services: 'deployment/services.md'
+      - Cloudera Manager: 'deployment/cloudera-manager.md'
+      - Clusters: 'deployment/clusters.md'
+  - Operations:
+      - Accessing the Deployment: 'operations/README.md'
+      - SSH Access: 'operations/ssh.md'
+      - Tear Down: 'operations/teardown.md'
+  - Reference:
+      - Architecture: 'reference/README.md'
+      - Execution Environment: 'reference/execution-environment.md'
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.blocks.html
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - sane_lists: {}
+  - toc:
+      toc_depth: 3
+
+extra:
+  generator: false
+  analytics:
+    provider: custom
+    umami_script_src: https://metrics.cloudera-labs.com/script.js
+    umami_website_id: ec9cdd83-3798-4fd0-8c07-acb4efd971de
+
+plugins:
+  - same-dir
+  - search
+  - glightbox

@@ -1,0 +1,119 @@
+---
+# Copyright 2026 Cloudera, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Copy this file to config.yml and fill in the mandatory values.
+# All other parameters have sensible defaults in group_vars/all.yml.
+
+###
+# Mandatory parameters — no defaults, must be set for every deployment
+###
+
+name_prefix: "{{ mandatory }}" # Unique identifier for the deployment. 4-7 chars long. Ensure the string is a valid substring of an FQDN (lowercase letters, digits, and hyphens only; must start with a letter)
+infra_region: "{{ mandatory }}" # AWS region (e.g. us-east-2, eu-west-1)
+common_password: "{{ mandatory }}" # Min 8 chars, must include 1 number. Can be replaced with explicit per-service passwords
+owner_email: "{{ mandatory }}" # Used for resource tagging and pgAdmin login
+
+###
+#
+# The parameters below are defined in the group_vars/all.yml file.
+# You can override them here as necessary. Uncomment and change the values.
+#
+###
+
+### Community Edition requirements
+#
+# Version is what is found in the support matrix, e.g. label
+# Release is what is found in the archive, e.g. URL path
+#
+# cloudera_manager_version: 7.13.2
+# cloudera_manager_release: "{{ cloudera_manager_version }}" # e.g. "7.13.1.400"
+#
+# cloudera_runtime_version: 7.3.2               # e.g. "7.1.9 SP1"
+# cloudera_runtime_release: "{{ cloudera_runtime_version }}" # e.g. "7.1.9.1000"
+#
+# cloudera_parcels:                              # Note, the entries are processed in order
+#   CDH: "7.3.2-1.cdh7.3.2.p0.77083870"
+# cloudera_parcel_csds: []
+# cloudera_parcel_repo_urls:
+#   - https://archive.cloudera.com/p/cdh7/{{ cloudera_runtime_release }}/parcels/
+#   - https://archive.cloudera.com/cdh7/{{ cloudera_runtime_release }}/parcels/
+#
+# jdk_version: 17
+# caddy_self_signed: true
+# kerberos_realm: "CLDR.INTERNAL"
+# dns_domain: "cldr.internal"
+# public_domain: "nip.io" # Externally routable domain for reverse proxy endpoints. See https://sslip.io/
+
+### ECS-specific versions (only required for ECS topology)
+#
+# ecs_version: 1.5.5-h2000
+# ecs_parcels:
+#   ECS: 1.5.5-h2000-b238-ecs-1.5.5-h2000-b238.p0.75107051
+# ecs_parcel_repo_url: https://archive.cloudera.com/p/cdp-pvc-ds/{{ ecs_version }}/parcels/
+
+### Feature toggles
+#
+# enable_prometheus: true                       # Node Exporter, Prometheus, Grafana
+# enable_freeipa_wildcard_profile: true         # Wildcard cert profile in FreeIPA (ECS)
+# enable_postgres_tls: true                     # PostgreSQL TLS enrollment via FreeIPA
+# enable_prereq_freeipa_client: true             # Include prereq_freeipa_client role
+
+### Foundational credentials
+#
+# cloudera_manager_database_password: "{{ common_password }}"
+# cloudera_manager_admin_password: "{{ common_password }}"
+# reports_manager_password: "{{ common_password }}"
+# cloudera_ecs_admin_password: "{{ common_password }}"
+# freeipa_password: "{{ common_password }}"
+# database_admin_user: "db_admin"
+# database_admin_password: "{{ common_password }}"
+# pgadmin_default_email: "{{ owner_email }}"
+# pgadmin_default_password: "{{ common_password }}"
+
+### Services credentials
+#
+# ranger_password: "{{ common_password }}"
+# hive_password: "{{ common_password }}"
+# knox_password: "{{ common_password }}"
+# ssb_admin_password: "{{ common_password }}"
+# ssb_mve_password: "{{ common_password }}"
+# hue_password: "{{ common_password }}"
+# smm_password: "{{ common_password }}"
+
+### Cloudera-only requirements
+#
+# ingress_cidr: ["{{ lookup('ansible.builtin.url', 'https://api.ipify.org') }}/32"] # List of CIDRs for firewall/Security Groups
+# asset_tags:
+#   deployment: "{{ name_prefix }}"
+#   deploy-tool: cloudera-deploy
+#   cloudera-project: "PVC Community Edition"
+#   owner: "{{ owner_email }}"
+
+### Infrastructure definition (override Terraform defaults)
+#
+# infra:
+#   nodes:
+#     gateway:     { count: 1, instance_type: "t3a.medium",  root_volume_size: 100 }
+#     services:    { count: 1, instance_type: "t3a.large",   root_volume_size: 500 }
+#     masters:     { count: 3, instance_type: "t3a.xlarge",  root_volume_size: 250 }
+#     workers:     { count: 4, instance_type: "t3a.xlarge",  root_volume_size: 250 }
+#     cms:         { count: 1, instance_type: "r5a.xlarge",  root_volume_size: 300 }
+#     sdx:         { count: 1, instance_type: "t3a.xlarge",  root_volume_size: 500 }
+#     ecs-masters: { count: 1, instance_type: "r5a.4xlarge", root_volume_size: 600 }
+#     ecs-workers: { count: 3, instance_type: "r5a.4xlarge", root_volume_size: 500 }
+
+### SSH key (uncomment to use a pre-existing key instead of generating one)
+#
+# ssh_pem_file: "{{ lookup('ansible.builtin.env', 'SSH_PRIVATE_KEY_FILE') }}"

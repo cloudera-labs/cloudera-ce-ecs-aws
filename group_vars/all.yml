@@ -1,0 +1,112 @@
+# Copyright 2026 Cloudera, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Defaults for general cluster deployment for the Community Edition
+
+---
+
+###
+#
+# The parameters below are necessary to manage most deployments.
+# You can override them as necessary either in a config.yml file (or other
+# variable file) or by hardcoding the variables within a playbook.
+#
+###
+
+### Community Edition requirements
+
+# Version is what is found in the support matrix, e.g. label
+# Release is what is found in the archive, e.g. URL path
+
+cloudera_manager_version: 7.13.2
+cloudera_manager_release: "7.13.2.6" # e.g. "7.13.1.400"
+
+cloudera_runtime_version: 7.3.2 # e.g. "7.1.9 SP1"
+cloudera_runtime_release: "7.3.2.0" # e.g. "7.1.9.1000"
+
+cloudera_parcels:
+  CDH: "7.3.2-1.cdh7.3.2.p0.77083870"
+cloudera_parcel_csds: []
+cloudera_parcel_repo_urls:
+  - https://archive.cloudera.com/p/cdh7/{{ cloudera_runtime_release }}/parcels/
+  - https://archive.cloudera.com/cdh7/{{ cloudera_runtime_release }}/parcels/
+
+### ECS-specific versions (only used when ecs_masters group is populated)
+# ECS 1.5.5 SP3
+ecs_version: 1.5.5-h3000
+ecs_parcels:
+  ECS: 1.5.5-h3000-b276-ecs-1.5.5-h3000-b276.p0.79854104
+ecs_parcel_repo_url: https://archive.cloudera.com/p/cdp-pvc-ds/{{ ecs_version }}/parcels/
+
+# Define the SSH private key file or have one generated for you
+# ssh_pem_file: "{{ lookup('ansible.builtin.env', 'SSH_PRIVATE_KEY_FILE') }}"
+
+jdk_version: 17
+caddy_self_signed: true
+kerberos_realm: "CLDR.INTERNAL" # The Kerberos realm managed by the local FreeIPA server
+dns_domain: "cldr.internal" # Non-routable, internal domain managed by the local FreeIPA server
+public_domain: "nip.io" # Externally routable domain for reverse proxy endpoints 
+
+### Feature toggles (see services.yml for usage)
+enable_prometheus: true
+enable_freeipa_wildcard_profile: true
+enable_postgres_tls: true
+enable_prereq_freeipa_client: true
+
+### Foundational credentials
+cloudera_manager_database_password: "{{ common_password }}"
+cloudera_manager_admin_password: "{{ common_password }}"
+reports_manager_password: "{{ common_password }}"
+cloudera_ecs_admin_password: "{{ common_password }}"
+freeipa_password: "{{ common_password }}"
+database_admin_user: "db_admin"
+database_admin_password: "{{ common_password }}"
+pgadmin_default_email: "{{ owner_email }}"
+pgadmin_default_password: "{{ common_password }}"
+grafana_security_admin_password: "{{ common_password }}"
+
+### Services credentials
+ranger_password: "{{ common_password }}"
+hive_password: "{{ common_password }}"
+knox_password: "{{ common_password }}"
+ssb_admin_password: "{{ common_password }}"
+ssb_mve_password: "{{ common_password }}"
+hue_password: "{{ common_password }}"
+smm_password: "{{ common_password }}"
+
+### Cloudera-only requirements
+ingress_cidr: ["{{ lookup('ansible.builtin.url', 'https://api.ipify.org') }}/32"] # List of CIDRs for firewall/Security Groups
+asset_tags:
+  deployment: "{{ name_prefix }}"
+  deploy-tool: cloudera-deploy
+  cloudera-project: "PVC Community Edition"
+  owner: "{{ owner_email }}"
+
+### External Auth User Mappings with FreeIPA
+external_auth_user_mappings:
+  - name: cdp-admins
+    type: LDAP
+    auth_roles:
+      - ROLE_ADMIN
+  - name: cdp-users
+    type: LDAP
+    auth_roles:
+      - ROLE_OPERATOR
+
+# Pin FreeIPA package to overcome missing Samba package issue
+freeipa_client_packages:
+  - "ipa-client-4.12.2-14.el9_6"
+freeipa_server_packages:
+  - "ipa-server-4.12.2-14.el9_6"
+  - "ipa-server-dns-4.12.2-14.el9_6"

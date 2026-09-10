@@ -1,0 +1,427 @@
+---
+# Copyright 2026 Cloudera, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: Ensure inventory readiness
+  hosts: all
+  gather_facts: false
+  tags:
+    - readiness
+  tasks:
+    - name: Check if host is ready
+      ansible.builtin.wait_for_connection:
+        timeout: 60
+
+- name: Ensure remote_tmp for escalated user
+  hosts: all
+  gather_facts: false
+  become: true
+  tags:
+    - readiness
+  tasks:
+    - name: Configure remote_tmp for escalated user
+      ansible.builtin.file:
+        path: "{{ ansible_remote_tmp | default('~/.ansible/tmp') | expanduser }}"
+        state: directory
+        mode: "0755"
+        recurse: true
+
+# Set up basic OS and then networking (the latter helps with debugging subsequent plays)
+- name: Enable and configure hosts for basic OS configuration and networking
+  hosts: all
+  gather_facts: true
+  become: true
+  tags:
+    - system
+    - system_services
+  vars:
+    tf_inventory: "{{ playbook_dir }}/../tf_cluster_aws"
+    vpc_cidr: "{{ lookup('cloud.terraform.tf_output', 'vpc', project_path=tf_inventory)['cidr_block'] }}"
+    network_ip_address: "{{ ansible_host }}" # The private IP address within the VPC
+    network_dns_domain: "{{ dns_domain }}"
+    network_dns_forwarders: "{{ groups['freeipa'] | map('extract', hostvars, ['ansible_host']) | community.general.lists_union([ vpc_cidr | ansible.utils.ipmath(2) ]) }}"
+  roles:
+    - cloudera.exe.prereq_os
+    - cloudera.exe.prereq_network_dns
+
+- name: Enable and configure hosts for cluster deployment
+  hosts: deployment
+  gather_facts: true
+  become: true
+  tags:
+    - system
+    - system_deployment
+  roles:
+    - cloudera.exe.prereq_thp
+    - cloudera.exe.prereq_rngd
+    - cloudera.exe.prereq_kernel
+    - cloudera.exe.prereq_firewall
+    - cloudera.exe.prereq_services
+    - cloudera.exe.prereq_selinux
+    - cloudera.exe.prereq_python
+    - cloudera.exe.prereq_jdk
+    - cloudera.exe.prereq_supported
+
+- name: Provision Caddy reverse proxy service
+  hosts: reverse_proxy
+  gather_facts: true
+  become: true
+  tags:
+    - reverse_proxy
+    - proxy
+  vars:
+    tf_inventory: "{{ playbook_dir }}/../tf_cluster_aws"
+    external_subdomain: "{{ lookup('cloud.terraform.tf_output', 'gateways', project_path=tf_inventory) | map(attribute='public_ip') | first }}"
+  tasks:
+
+    - name: Set up Caddy service
+      ansible.builtin.import_role:
+        name: cloudera.exe.caddy
+      vars:
+        caddy_domain: "{{ external_subdomain }}.{{ public_domain }}"
+        caddy_www_root: /opt/summary
+
+    - name: Relocate Caddy root CA certificate to repository root
+      delegate_to: localhost
+      become: false
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/{{ name_prefix }}-caddy-root.crt"
+        dest: "{{ playbook_dir }}/../{{ name_prefix }}-caddy-root.crt"
+        mode: "0644"
+      when: caddy_self_signed | default(false)
+
+    - name: Set up deployment summary HTML document
+      ansible.builtin.template:
+        src: "deployment.html.j2"
+        dest: "/opt/summary/index.html"
+        mode: "0644"
+      vars:
+        cloudera_manager_domain: "cm.{{ ansible_host }}.{{ public_domain }}"
+        freeipa_domain: "freeipa.{{ ansible_host }}.{{ public_domain }}"
+        pgadmin_domain: "pgadmin.{{ ansible_host }}.{{ public_domain }}"
+        knox_domain: "knox.{{ ansible_host }}.{{ public_domain }}"
+        ecs_control_plane_domain: "console-cdp.apps.ecs.{{ ansible_host }}.{{ public_domain }}"
+        prometheus_domain: "prometheus.{{ ansible_host }}.{{ public_domain }}"
+        grafana_domain: "grafana.{{ ansible_host }}.{{ public_domain }}"
+
+    - name: Install FreeIPA reverse proxy
+      ansible.builtin.template:
+        src: freeipa.caddyfile.j2
+        dest: /etc/caddy/Caddyfile.d/freeipa.caddyfile
+        mode: "0644"
+      vars:
+        external_domain: "freeipa.{{ external_subdomain }}.{{ public_domain }}"
+        freeipa_fqdn: "{{ groups['freeipa'] | first }}"
+      notify: Reload Caddy
+
+    - name: Install pgAdmin reverse proxy
+      ansible.builtin.template:
+        src: pgadmin.caddyfile.j2
+        dest: /etc/caddy/Caddyfile.d/pgadmin.caddyfile
+        mode: "0644"
+      vars:
+        external_domain: "pgadmin.{{ external_subdomain }}.{{ public_domain }}"
+        pgadmin_fqdn: "{{ groups['pgadmin'] | first }}:5050"
+      notify: Reload Caddy
+
+    - name: Install Prometheus reverse proxy
+      when: enable_prometheus | default(false)
+      ansible.builtin.template:
+        src: prometheus.caddyfile.j2
+        dest: /etc/caddy/Caddyfile.d/prometheus.caddyfile
+        mode: "0644"
+      vars:
+        external_domain: "prometheus.{{ external_subdomain }}.{{ public_domain }}"
+        prometheus_fqdn: "{{ groups['freeipa'] | first }}:9090"
+      notify: Reload Caddy
+
+    - name: Install Grafana reverse proxy
+      when: enable_prometheus | default(false)
+      ansible.builtin.template:
+        src: grafana.caddyfile.j2
+        dest: /etc/caddy/Caddyfile.d/grafana.caddyfile
+        mode: "0644"
+      vars:
+        external_domain: "grafana.{{ external_subdomain }}.{{ public_domain }}"
+        grafana_fqdn: "{{ groups['freeipa'] | first }}:3000"
+      notify: Reload Caddy
+
+    - name: Install Data Services reverse proxy
+      when: groups['ecs_masters'] is defined and groups['ecs_masters'] | length > 0
+      ansible.builtin.template:
+        src: cloudera_ecs.caddyfile.j2
+        dest: /etc/caddy/Caddyfile.d/cloudera_ecs.caddyfile
+        mode: "0644"
+      vars:
+        cloudera_ecs_external_domain: "*.apps.{{ ecs_caddy_domain_infix | default('ecs.') }}{{ external_subdomain }}.{{ public_domain }}"
+        cloudera_ecs_fqdn: "{{ groups['ecs_masters'] | map('extract', hostvars, 'ansible_host') | first }}"
+        cloudera_ecs_scheme: "{{ ecs_caddy_scheme | default('http') }}"
+        cloudera_ecs_port: "{{ ecs_caddy_port | default(80) }}"
+      notify: Reload Caddy
+
+    - name: Fetch local deployment summary HTML document
+      ansible.builtin.fetch:
+        src: "/opt/summary/index.html"
+        dest: "{{ playbook_dir }}/../{{ name_prefix }}-summary.html"
+        flat: true
+
+- name: Configure Node Exporter on all hosts
+  hosts: all
+  gather_facts: true
+  become: true
+  tags: monitoring
+  roles:
+    - role: cloudera.exe.nodeexporter
+      when: enable_prometheus | default(false)
+
+- name: Configure Prometheus and Grafana on Services host
+  hosts: postgresql
+  gather_facts: true
+  become: true
+  tags: monitoring
+  vars:
+    prometheus_scrape_targets: >
+      {{ (
+        groups['base_masters'] +
+        groups['base_workers'] +
+        groups['sdx'] +
+        groups['cloudera_manager'] +
+        groups['reverse_proxy'] +
+        groups['postgresql']
+      ) | unique }}
+  roles:
+    - role: cloudera.exe.prometheus
+      when: enable_prometheus | default(false)
+    - role: cloudera.exe.grafana
+      when: enable_prometheus | default(false)
+
+- name: Provision local FreeIPA services
+  hosts: freeipa
+  gather_facts: true
+  become: true
+  tags:
+    - freeipa
+    - freeipa_server
+  vars:
+    tf_inventory: "{{ playbook_dir }}/../tf_cluster_aws"
+    vpc_cidr: "{{ lookup('cloud.terraform.tf_output', 'vpc', project_path=tf_inventory)['cidr_block'] }}"
+    ipaserver_realm: "{{ kerberos_realm }}"
+    ipaserver_domain: "{{ dns_domain }}"
+    ipaserver_forwarders: "{{ [vpc_cidr | ansible.utils.ipmath(2)] }}" # See https://docs.aws.amazon.com/vpc/latest/userguide/vpc-dns.html
+    ipaserver_cidr: "{{ [vpc_cidr] }}"
+    ipaserver_recursion_acl_cidr: "{{ [vpc_cidr] }}"
+    ipaserver_ca_subject: "CN=CLDR-{{ name_prefix }}-RootCA,O={{ kerberos_realm }}"
+    ipadm_password: "{{ freeipa_password | default(lookup('env', 'IPA_PASSWORD', default='Undefined')) }}"
+    ipaadmin_password: "{{ freeipa_password | default(lookup('env', 'IPA_PASSWORD', default='Undefined')) }}"
+  roles:
+    - cloudera.exe.freeipa_server
+    - cloudera.exe.freeipa_server_users
+
+- name: Update FreeIPA httpd rewrites
+  hosts: freeipa
+  gather_facts: false
+  become: true
+  tags:
+    - freeipa
+    - freeipa_server
+  handlers:
+    - name: Reload Apache httpd
+      ansible.builtin.service:
+        name: httpd
+        state: reloaded
+  tasks:
+    - name: Replace FreeIPA httpd rewrites
+      ansible.builtin.template:
+        src: ipa-rewrite.conf.j2
+        dest: /etc/httpd/conf.d/ipa-rewrite.conf
+        backup: true
+        mode: "0644"
+      notify: Reload Apache httpd
+
+- name: Create wildcard certificate profile in FreeIPA
+  hosts: freeipa
+  gather_facts: true
+  become: true
+  tags:
+    - freeipa
+    - freeipa_server
+  vars:
+    ipaserver_realm: "{{ kerberos_realm }}"
+    ipaserver_domain: "{{ dns_domain }}"
+    ipaadmin_password: "{{ freeipa_password | default(lookup('env', 'IPA_PASSWORD', default='Undefined')) }}"
+  roles:
+    - role: cloudera.exe.freeipa_server_wildcard_profile
+      when: enable_freeipa_wildcard_profile | default(false)
+
+- name: Register the proxy hosts with local FreeIPA server
+  hosts: reverse_proxy:ssh_proxy
+  gather_facts: true
+  become: true
+  tags:
+    - freeipa
+    - freeipa_client
+  vars:
+    tf_inventory: "{{ playbook_dir }}/../tf_cluster_aws"
+    vpc_cidr: "{{ lookup('cloud.terraform.tf_output', 'vpc', project_path=tf_inventory)['cidr_block'] }}"
+    ipaclient_servers: "{{ groups['freeipa'] }}"
+    ipaclient_dns_servers: "{{ groups['freeipa'] | map('extract', hostvars, ['ansible_host']) | community.general.lists_union([ vpc_cidr | ansible.utils.ipmath(2) ]) }}"
+    ipaclient_realm: "{{ kerberos_realm }}"
+    ipaclient_domain: "{{ dns_domain }}"
+    ipaadmin_password: "{{ freeipa_password | default(lookup('ansible.builtin.env', 'IPA_PASSWORD', default='Undefined')) }}"
+  roles:
+    - cloudera.exe.freeipa_client
+
+- name: Register the cluster hosts (less the proxies) with local FreeIPA server
+  hosts: all:!freeipa:!reverse_proxy:!ssh_proxy
+  gather_facts: true
+  become: true
+  tags:
+    - freeipa
+    - freeipa_client
+  vars:
+    tf_inventory: "{{ playbook_dir }}/../tf_cluster_aws"
+    vpc_cidr: "{{ lookup('cloud.terraform.tf_output', 'vpc', project_path=tf_inventory)['cidr_block'] }}"
+    ipaclient_servers: "{{ groups['freeipa'] }}"
+    ipaclient_dns_servers: "{{ groups['freeipa'] | map('extract', hostvars, ['ansible_host']) | community.general.lists_union([ vpc_cidr | ansible.utils.ipmath(2) ]) }}"
+    ipaclient_realm: "{{ kerberos_realm }}"
+    ipaclient_domain: "{{ dns_domain }}"
+    ipaadmin_password: "{{ freeipa_password | default(lookup('ansible.builtin.env', 'IPA_PASSWORD', default='Undefined')) }}"
+  roles:
+    - cloudera.exe.prereq_freeipa_client
+    - cloudera.exe.freeipa_client
+
+- name: Provision ECS DNS records
+  hosts: reverse_proxy
+  gather_facts: true
+  tags:
+    - freeipa
+    - freeipa_server
+  vars:
+    dnszone_skip_overlap_check: true
+    ipaserver_host: "{{ groups['freeipa'] | first }}"
+    ipaserver_domain: "{{ ecs_dns_domain_prefix | default('ecs.') }}{{ groups['reverse_proxy'] | map('extract', hostvars, 'ansible_host') | first }}.{{ public_domain }}"
+    ipaadmin_password: "{{ freeipa_password | default(lookup('env', 'IPA_PASSWORD', default='Undefined')) }}"
+    freeipa_dns_records_address: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}" # The private IP address within the VPC
+    ipaapi_context: "client"
+  roles:
+    - role: cloudera.exe.freeipa_server_ecs
+      when: groups['ecs_masters'] is defined and groups['ecs_masters'] | length > 0
+
+- name: Configure Kerberos globally
+  hosts: all
+  gather_facts: true
+  become: true
+  tags: kerberos
+  roles:
+    - cloudera.exe.prereq_kerberos
+
+- name: Setup postgres user account
+  hosts: postgresql
+  become: true
+  tags: database
+  tasks:
+    - name: Create postgres system user and group
+      when: enable_postgres_tls | default(false)
+      ansible.builtin.import_role:
+        name: cloudera.exe.prereq_local_account
+      vars:
+        local_accounts:
+          - user: "postgres"
+            home: "/var/lib/postgres"
+            shell: "/bin/false"
+
+- name: Enroll Postgresql service with FreeIPA
+  hosts: postgresql
+  gather_facts: true
+  become: true
+  tags: database
+  vars:
+    enrolled_hostname: "{{ inventory_hostname }}"
+    ipaadmin_password: "{{ common_password }}"
+    enrolled_cert_key_path: "/etc/pki/tls/private/postgres.key"
+    enrolled_cert_path: "/etc/pki/tls/certs/postgres.crt"
+    enrolled_file_owner: "postgres"
+    enrolled_file_group: "postgres"
+  roles:
+    - role: cloudera.exe.freeipa_server_enrolled_tls
+      when: enable_postgres_tls | default(false)
+
+- name: Provision Postgresql services
+  hosts: postgresql
+  gather_facts: true
+  become: true
+  tags: database
+  vars:
+    create_database_admin_user: true
+    postgresql_tls_enabled: "{{ enable_postgres_tls | default(false) }}"
+    postgresql_tls_cert_path: /etc/pki/tls/certs/postgres.crt
+    postgresql_tls_key_path: /etc/pki/tls/private/postgres.key
+    postgresql_tls_ca_path: /etc/ipa/ca.crt
+    ### Set in config.yml as global vars
+    # database_admin_user:
+    # database_admin_password:
+  roles:
+    - cloudera.exe.postgresql_server
+
+- name: Provision pgAdmin services
+  hosts: pgadmin
+  gather_facts: true
+  become: true
+  tags:
+    - pgadmin
+  vars:
+    database_host: "{{ groups['pgadmin'] | first }}"
+    ### Set in config.yml as global vars
+    # database_admin_user:
+    # database_admin_password:
+  roles:
+    - cloudera.exe.docker
+    - cloudera.exe.pgadmin
+
+- name: Enable and configure hosts for ECS deployment
+  hosts: ecs
+  gather_facts: false
+  become: true
+  tags:
+    - system
+    - system_ecs
+  vars:
+    kernel_flags:
+      net.ipv4.ip_forward: 1
+      vm.swappiness: 1
+      vm.overcommit_memory: 1
+      net.ipv6.conf.all.disable_ipv6: 1
+      net.ipv6.conf.default.disable_ipv6: 1
+      net.ipv6.conf.lo.disable_ipv6: 1
+      fs.inotify.max_user_instances: 512
+  roles:
+    - cloudera.exe.prereq_ecs
+    - cloudera.exe.prereq_kernel
+
+- name: Update DNS configuration on ECS hosts to have single nameserver
+  hosts: ecs
+  gather_facts: true
+  become: true
+  roles:
+    - cloudera.exe.prereq_network_dns
+  tags:
+    - system
+    - system_services
+    - ecs_dns
+  vars:
+    tf_inventory: "{{ playbook_dir }}/../tf_cluster_aws"
+    vpc_cidr: "{{ lookup('cloud.terraform.tf_output', 'vpc', project_path=tf_inventory)['cidr_block'] }}"
+    network_ip_address: "{{ ansible_host }}"
+    network_dns_domain: "{{ dns_domain }}"
+    network_dns_forwarders: "{{ groups['freeipa'] | map('extract', hostvars, ['ansible_host']) }}"
