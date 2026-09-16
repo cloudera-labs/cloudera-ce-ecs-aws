@@ -14,7 +14,7 @@
 
 # Cloudera On Premise Community Edition
 
-Ansible + Terraform automation for deploying Cloudera Private Cloud on AWS. Constructs a ring-fenced, 10-node cluster accessible via SSH and reverse HTTPS proxies.
+Ansible + Terraform automation for deploying Cloudera Private Cloud on AWS. Constructs a ring-fenced, 10-node Base cluster and 4-node ECS cluster accessible via SSH and reverse HTTPS proxies.
 
 - Self-contained DNS, Kerberos, database, and TLS services
 - ACME-managed TLS termination on the reverse proxy
@@ -26,12 +26,12 @@ Ansible + Terraform automation for deploying Cloudera Private Cloud on AWS. Cons
 
 ```bash
 cp config-template.yml config.yml    # Set name_prefix, infra_region, common_password, owner
-ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml playbooks/cms.yml playbooks/ozone-cluster.yml -e @config.yml
+ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml playbooks/cms.yml playbooks/ozone-cluster.yml playbooks/ecs-cluster.yml -e @config.yml
 ```
 
 ## Documentation
 
-> **[View the full documentation site](<YOUR_DOCS_SITE_URL>)**
+> **[View the full documentation site](https://cloudera-labs.github.io/cloudera-ce-ecs-aws/)**
 
 Setup instructions, configuration reference, and operational guides are also available in the **[docs/](docs/)** directory.
 

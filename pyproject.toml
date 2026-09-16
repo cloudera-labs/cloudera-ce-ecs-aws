@@ -1,5 +1,5 @@
 [project]
-name = "<YOUR_REPO_NAME_ONLY>"
+name = "cloudera-ce-ecs-aws"
 dynamic = ["version"]
 description = 'Cloudera on Premise Community Edition for AWS is an examplar deployment for development, training, workshops, and demonstrations.'
 readme = "README.md"
@@ -62,8 +62,8 @@ ansible-builder build -vvv \
   --build-arg BUILD_VER=$_TAG \
   --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
   --build-arg BUILD_REVISION=$(git rev-parse HEAD) \
-  -t localhost/<YOUR_IMAGE_NAME>:$_TAG 2>&1 | tee builder/build.log
-echo "Local image ($ENGINE): localhost/<YOUR_IMAGE_NAME>:$_TAG"
+  -t localhost/cloudera-ce-ecs-aws:$_TAG 2>&1 | tee builder/build.log
+echo "Local image ($ENGINE): localhost/cloudera-ce-ecs-aws:$_TAG"
   """
 ]
 
@@ -87,7 +87,7 @@ if [ -z "$_RAW_TAG" ]; then
   _RAW_TAG=$(hatch version)
 fi
 _IMAGE_TAG=$(echo "$_RAW_TAG" | sed 's/^v//')
-_IMAGE=ghcr.io/cloudera-labs/<YOUR_IMAGE_NAME>:$_IMAGE_TAG-$_ARCH
+_IMAGE=ghcr.io/cloudera-labs/cloudera-ce-ecs-aws:$_IMAGE_TAG-$_ARCH
 ansible-builder build \
   --container-runtime "$ENGINE" \
   --no-cache \
@@ -118,7 +118,7 @@ if [ -z "$_RAW_TAG" ]; then
   _RAW_TAG=$(hatch version)
 fi
 _IMAGE_TAG=$(echo "$_RAW_TAG" | sed 's/^v//')
-_REPO=ghcr.io/cloudera-labs/<YOUR_IMAGE_NAME>
+_REPO=ghcr.io/cloudera-labs/cloudera-ce-ecs-aws
 if [ "$ENGINE" = docker ]; then
   docker buildx imagetools create \
     -t $_REPO:$_IMAGE_TAG \
