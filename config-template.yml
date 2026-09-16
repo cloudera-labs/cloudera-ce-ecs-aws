@@ -38,29 +38,23 @@ owner_email: "{{ mandatory }}" # Used for resource tagging and pgAdmin login
 # Release is what is found in the archive, e.g. URL path
 #
 # cloudera_manager_version: 7.13.2
-# cloudera_manager_release: "{{ cloudera_manager_version }}" # e.g. "7.13.1.400"
-#
-# cloudera_runtime_version: 7.3.2               # e.g. "7.1.9 SP1"
-# cloudera_runtime_release: "{{ cloudera_runtime_version }}" # e.g. "7.1.9.1000"
-#
-# cloudera_parcels:                              # Note, the entries are processed in order
+# cloudera_manager_release: "7.13.2.6" # e.g. "7.13.1.400"
+
+# cloudera_runtime_version: 7.3.2 # e.g. "7.1.9 SP1"
+# cloudera_runtime_release: "7.3.2.0" # e.g. "7.1.9.1000"
+
+# cloudera_parcels:
 #   CDH: "7.3.2-1.cdh7.3.2.p0.77083870"
 # cloudera_parcel_csds: []
 # cloudera_parcel_repo_urls:
 #   - https://archive.cloudera.com/p/cdh7/{{ cloudera_runtime_release }}/parcels/
 #   - https://archive.cloudera.com/cdh7/{{ cloudera_runtime_release }}/parcels/
-#
-# jdk_version: 17
-# caddy_self_signed: true
-# kerberos_realm: "CLDR.INTERNAL"
-# dns_domain: "cldr.internal"
-# public_domain: "nip.io" # Externally routable domain for reverse proxy endpoints. See https://sslip.io/
 
-### ECS-specific versions (only required for ECS topology)
-#
-# ecs_version: 1.5.5-h2000
+# ### ECS-specific versions (only used when ecs_masters group is populated)
+# # ECS 1.5.5 SP3
+# ecs_version: 1.5.5-h3000
 # ecs_parcels:
-#   ECS: 1.5.5-h2000-b238-ecs-1.5.5-h2000-b238.p0.75107051
+#   ECS: 1.5.5-h3000-b276-ecs-1.5.5-h3000-b276.p0.79854104
 # ecs_parcel_repo_url: https://archive.cloudera.com/p/cdp-pvc-ds/{{ ecs_version }}/parcels/
 
 ### Feature toggles
@@ -100,19 +94,6 @@ owner_email: "{{ mandatory }}" # Used for resource tagging and pgAdmin login
 #   deploy-tool: cloudera-deploy
 #   cloudera-project: "PVC Community Edition"
 #   owner: "{{ owner_email }}"
-
-### Infrastructure definition (override Terraform defaults)
-#
-# infra:
-#   nodes:
-#     gateway:     { count: 1, instance_type: "t3a.medium",  root_volume_size: 100 }
-#     services:    { count: 1, instance_type: "t3a.large",   root_volume_size: 500 }
-#     masters:     { count: 3, instance_type: "t3a.xlarge",  root_volume_size: 250 }
-#     workers:     { count: 4, instance_type: "t3a.xlarge",  root_volume_size: 250 }
-#     cms:         { count: 1, instance_type: "r5a.xlarge",  root_volume_size: 300 }
-#     sdx:         { count: 1, instance_type: "t3a.xlarge",  root_volume_size: 500 }
-#     ecs-masters: { count: 1, instance_type: "r5a.4xlarge", root_volume_size: 600 }
-#     ecs-workers: { count: 3, instance_type: "r5a.4xlarge", root_volume_size: 500 }
 
 ### SSH key (uncomment to use a pre-existing key instead of generating one)
 #
