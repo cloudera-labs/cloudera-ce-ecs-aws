@@ -80,7 +80,7 @@
       cloudera.cloud.de:
         env: "{{ ecs_env_name }}"
         name: "{{ name_prefix }}-de"
-        instance_type: 'private' 
+        instance_type: 'private'
         cpu_requests: 24
         memory_requests: '64Gi'
         resource_pool: "root.{{ ecs_env_name }}.cde"

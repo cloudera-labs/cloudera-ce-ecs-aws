@@ -23,8 +23,6 @@
       ansible.builtin.wait_for_connection:
         timeout: 60
 
-# NOTE: Requires internal version of cli to be installed due to missing namespace in CML workbench CLI call
-# pip install --extra-index-url https://pypi.infra.cloudera.com/api/pypi/pypi-cloudera/simple --pre cdpcli-internal
 - name: Set up Cloudera AI Workbench on ECS
   hosts: localhost
   connection: local
@@ -50,15 +48,16 @@
         name: "{{ name_prefix }}-ml"
         governance: yes
         metrics: yes
-        tls: yes # NOTE: In current cloudera.cloud, this is an alias with verify_tls. See https://github.com/cloudera-labs/cloudera.cloud/blob/main/plugins/module_utils/cdp_common.py#L106
+        tls: yes
         verify_tls: "{{ not(caddy_self_signed is defined and caddy_self_signed) }}" # NOTE: See above
         wait: yes
-        namespace: "cml" # NOTE: Parameter not currently exposed in external CDP CLI/API/SDK. See https://cloudera.atlassian.net/browse/DSE-41725
-        # TODO: Support for nfs server
-        # nfs: 
-        # nfs_version:
+        namespace: "cml"
+        resource_pool:
+          workspace_quota:
+            cpu_quota: "50"
+            memory_quota: "46 Gi"
       register: __cai_workbench
-
+  
     - name: Set workbench ID
       ansible.builtin.set_fact:
         workbench_id: "{{ __cai_workbench.workspace.instanceUrl | regex_replace('https://', '') | regex_replace('(\\..*$)', '') }}"
