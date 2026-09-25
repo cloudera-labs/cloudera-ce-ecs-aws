@@ -19,7 +19,7 @@ Ansible + Terraform automation for deploying Cloudera Private Cloud on AWS. Cons
 - Self-contained DNS, Kerberos, database, and TLS services
 - ACME-managed TLS termination on the reverse proxy
 - Cloudera Manager with Kerberos and Auto-TLS
-- Multiple cluster topologies (Ozone, Kafka, Flink, NiFi, CSA, ECS)
+- Ozone-enabled base and ECS cluster deployments
 - Fully idempotent — run repeatedly with no unintended state changes
 
 ## Quick Start

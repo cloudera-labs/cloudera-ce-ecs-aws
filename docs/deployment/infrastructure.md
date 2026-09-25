@@ -25,6 +25,8 @@ The infrastructure playbook provisions all AWS resources using Terraform.
     - 1 Services host (FreeIPA, PostgreSQL, pgAdmin)
     - 3 Masters
     - 4 Workers
+    - 1 ECS Master
+    - 3 ECS Workers
     - 1 Cloudera Manager host
     - 1 SDX/Knox host
 - **SSH keypair** (generated or user-provided)

@@ -25,6 +25,9 @@ The services playbook configures all supporting infrastructure services on the p
 | PostgreSQL | Services host | Databases for CM and services |
 | pgAdmin | Services host | Database administration UI |
 | Caddy | Gateway | Reverse proxy with TLS termination |
+| Caddy (ECS) | Gateway | Wildcard reverse proxy for Data Services (when ECS hosts present) |
+| ECS Prerequisites | ECS hosts | Kernel tuning and ECS-specific OS configuration |
+| ECS DNS | FreeIPA (via Gateway) | DNS zone and records for ECS application domains |
 | Node Exporter | All hosts | System metrics (when monitoring enabled) |
 | Prometheus | Services host | Metrics collection (when monitoring enabled) |
 | Grafana | Services host | Metrics dashboards (when monitoring enabled) |
@@ -47,6 +50,7 @@ ansible-navigator run playbooks/services.yml -e @config.yml
 | `database` | PostgreSQL and pgAdmin |
 | `pgadmin` | pgAdmin setup |
 | `monitoring` | Prometheus, Grafana, Node Exporter |
+| `system_ecs` | ECS-specific OS and kernel configuration |
 | `ecs_dns` | ECS DNS record provisioning |
 
 ## Feature Toggles
@@ -64,12 +68,16 @@ These are controlled via `config.yml` or `group_vars/all.yml`:
 
 After the services playbook completes, the following endpoints are available via the Caddy reverse proxy on the gateway:
 
-- `https://cm.<gateway_ip>.<public_domain>` — Cloudera Manager
-- `https://freeipa.<gateway_ip>.<public_domain>` — FreeIPA Web UI
-- `https://pgadmin.<gateway_ip>.<public_domain>` — pgAdmin
-- `https://knox.<gateway_ip>.<public_domain>` — Knox Gateway
+- `https://cm.<gateway_ip>.<public_domain>` - Cloudera Manager
+- `https://freeipa.<gateway_ip>.<public_domain>` - FreeIPA Web UI
+- `https://pgadmin.<gateway_ip>.<public_domain>` - pgAdmin
+- `https://knox.<gateway_ip>.<public_domain>` - Knox Gateway
+
+When ECS hosts are present:
+
+- `https://*.apps.ecs.<gateway_ip>.<public_domain>` - CDP Data Services (ECS Control Plane)
 
 When monitoring is enabled:
 
-- `https://prometheus.<gateway_ip>.<public_domain>` — Prometheus
-- `https://grafana.<gateway_ip>.<public_domain>` — Grafana
+- `https://prometheus.<gateway_ip>.<public_domain>` - Prometheus
+- `https://grafana.<gateway_ip>.<public_domain>` - Grafana

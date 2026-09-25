@@ -24,7 +24,7 @@ ansible-navigator run playbooks/infrastructure-teardown.yml -e @config.yml
 
 ## What It Destroys
 
-- All EC2 instances (gateway, services, masters, workers, CMS, SDX)
+- All EC2 instances (gateway, services, masters, workers, CMS, SDX, ECS masters, ECS workers)
 - Elastic IP addresses
 - VPC, subnets, internet gateway, security groups
 - SSH keypair (AWS-side; the local `.pem` file remains)
@@ -35,14 +35,3 @@ ansible-navigator run playbooks/infrastructure-teardown.yml -e @config.yml
 
 !!! tip
     The local files (`terraform.tfstate`, SSH key, summary HTML) remain in your project directory. Delete them manually if you want a completely clean slate.
-
-## Partial Tear Down
-
-If you only want to remove the Terraform-managed infrastructure without destroying everything:
-
-```bash
-cd tf_cluster_aws
-terraform destroy
-```
-
-This gives you more control over what gets removed and lets you inspect the plan before confirming.
