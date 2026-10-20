@@ -67,3 +67,6 @@ Deploy ECS cluster:
 ```bash
 ansible-navigator run playbooks/ecs-cluster.yml -e @config.yml
 ```
+
+!!! tip "Next: Data Services"
+    Once the ECS Control Plane is deployed, you can optionally provision Cloudera data services such as Cloudera AI, Data Engineering, and Data Warehouse. These are not part of the core deployment stages — see [Data Services](data-services.md) for details.

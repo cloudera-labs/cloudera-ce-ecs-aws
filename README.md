@@ -38,6 +38,6 @@ Setup instructions, configuration reference, and operational guides are also ava
 | Section | Description |
 |---------|-------------|
 | [Getting Started](docs/getting-started/) | Prerequisites, credentials, configuration |
-| [Deployment](docs/deployment/) | Infrastructure, services, Cloudera Manager, clusters |
+| [Deployment](docs/deployment/) | Infrastructure, services, Cloudera Manager, clusters, and optional [data services](docs/deployment/data-services.md) (AI, Data Engineering, Data Warehouse) |
 | [Operations](docs/operations/) | Accessing endpoints, SSH, tear down |
 | [Reference](docs/reference/) | Architecture, execution environment |

@@ -36,6 +36,7 @@ nav = [
     { "Services" = "deployment/services.md" },
     { "Cloudera Manager" = "deployment/cloudera-manager.md" },
     { "Clusters" = "deployment/clusters.md" },
+    { "Data Services" = "deployment/data-services.md" },
   ] },
   { "Operations" = [
     { "Accessing the Deployment" = "operations/README.md" },
