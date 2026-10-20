@@ -31,16 +31,16 @@
     ecs_env_name: ecs
   tasks:
 
-    # - name: Assert that Control Plane is reachable
-    #   block:
-    #     - name: Confirm Control Plane Authentication
-    #       cloudera.cloud.iam_user_info:
-    #         current_user: true
-    #         verify_tls: "{{ not(caddy_self_signed is defined and caddy_self_signed) }}" # NOTE: See above
-    #   rescue:
-    #     - name: Print error if Authentication is unsuccessful
-    #       fail:
-    #         msg: "Authentication to ECS control plane failed. Please check your credentials, and network connectivity to the control plane."
+    - name: Assert that Control Plane is reachable
+      block:
+        - name: Confirm Control Plane Authentication
+          cloudera.cloud.iam_user_info:
+            current_user: true
+            verify_tls: "{{ not(caddy_self_signed is defined and caddy_self_signed) }}" # NOTE: See above
+      rescue:
+        - name: Print error if Authentication is unsuccessful
+          fail:
+            msg: "Authentication to ECS control plane failed. Please check your credentials, and network connectivity to the control plane."
 
     - name: Fetch FreeIPA CA certificate
       ansible.builtin.uri:
@@ -87,38 +87,3 @@
         state: present
         wait: true
       register: __cdw_cluster
-
-    - name: Gather information about the database catalog
-      cloudera.cloud.dw_database_catalog_info:
-        # TODO: Use the name parameter to get default DBC
-        # name: ...
-        cluster_id: "{{ __cdw_cluster.cluster.id }}"
-        verify_tls: "{{ not(caddy_self_signed is defined and caddy_self_signed) }}" # NOTE: See above
-      register: __dw_dbc_info
-      until: 
-        - __dw_dbc_info.database_catalogs | length > 0
-        - __dw_dbc_info.database_catalogs[0].status == 'Running'
-      retries: 10
-      delay: 30
-
-    # # CDW Impala Virtual Warehouse
-    # - name: Set up the Impala Virtual Warehouse
-    #   cloudera.cloud.dw_virtual_warehouse:
-    #     name: "impala-vw"
-    #     cluster_id: "{{ __cdw_cluster.cluster.id }}"
-    #     catalog_id: "{{ __dw_dbc_info.database_catalogs | map(attribute='id') | list | first }}"
-    #     type: impala
-    #     tshirt_size: "xsmall"
-    #     verify_tls: "{{ not(caddy_self_signed is defined and caddy_self_signed) }}" 
-    #     wait: yes
-
-    # # CDW Impala Virtual Warehouse
-    # - name: Set up the Hive Virtual Warehouse
-    #   cloudera.cloud.dw_virtual_warehouse:
-    #     name: "hive-vw"
-    #     cluster_id: "{{ __cdw_cluster.cluster.id }}"
-    #     catalog_id: "{{ __dw_dbc_info.database_catalogs | map(attribute='id') | list | first }}"
-    #     type: hive
-    #     tshirt_size: "xsmall"
-    #     verify_tls: "{{ not(caddy_self_signed is defined and caddy_self_signed) }}"
-    #     wait: yes
