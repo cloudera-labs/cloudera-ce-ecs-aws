@@ -60,20 +60,21 @@
           -d '{{ ldap_provider_config | to_json }}'
           --insecure
       vars:
+        base_dn: "{{ dns_domain.split('.') | map('regex_replace', '^(.*)$', 'dc=\\1') | join(',') }}"
         ldap_provider_config:
           ldapProviderName: "cm-ldap"
           skipGroupSyncOnLogin: false
           url: "ldaps://{{ groups['freeipa'] | first }}"
           useAnonymousBind: "bind_dn_password"
-          userSearchBase: "cn=users,cn=accounts,dc=cldr,dc=internal"
+          userSearchBase: "cn=users,cn=accounts,{{ base_dn }}"
           userSearchFilter: "(uid={0})"
           usernameMappingAttribute: uid
           emailMappingAttribute: ""
-          groupSearchBase: "cn=groups,cn=accounts,dc=cldr,dc=internal"
+          groupSearchBase: "cn=groups,cn=accounts,{{ base_dn }}"
           groupSearchFilter: "(&(member={0})(objectClass=posixgroup)(! ( | (cn=admins) (cn=ipausers) ) ))"
           tlsCaCertificates:
             - "{{ __freeipa_ca_cert_response.content }}"
-          bindDn: "uid=admin,cn=users,cn=accounts,dc=cldr,dc=internal"
+          bindDn: "uid=admin,cn=users,cn=accounts,{{ base_dn }}"
           bindPassword: "{{ freeipa_password | default(lookup('env', 'IPA_PASSWORD', default='')) }}"
     
     - name: Create CDW cluster
