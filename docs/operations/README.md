@@ -42,9 +42,13 @@ All services are accessed through the Caddy reverse proxy on the gateway host:
 | pgAdmin | `https://pgadmin.<gateway_ip>.<public_domain>` |
 | Prometheus | `https://prometheus.<gateway_ip>.<public_domain>` |
 | Grafana | `https://grafana.<gateway_ip>.<public_domain>` |
+| CDP Data Services Console | `https://console-cdp.apps.ecs.<gateway_ip>.<public_domain>` |
 
 !!! note
     Prometheus and Grafana endpoints are only available when `enable_prometheus: true`.
+
+!!! note
+    The CDP Data Services Console endpoint is only available after the ECS cluster playbook has completed.
 
 ## TLS Certificates
 
@@ -71,5 +75,6 @@ You can install this CA into your local truststore to avoid browser certificate 
 | FreeIPA | `admin` | `<freeipa_password>` |
 | pgAdmin | `<owner_email>` | `<pgadmin_default_password>` |
 | PostgreSQL | `<database_admin_user>` | `<database_admin_password>` |
+| CDP Data Services | `admin` | `<cloudera_ecs_admin_password>` |
 
 All passwords default to `{{ common_password }}` unless explicitly overridden in `config.yml`.

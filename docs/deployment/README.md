@@ -14,24 +14,25 @@
 
 # Deployment Overview
 
-The deployment runs in four stages, each handled by a dedicated playbook:
+The deployment runs in five stages, each handled by a dedicated playbook:
 
 | Stage | Playbook | Duration | Purpose |
 |-------|----------|----------|---------|
 | 1. Infrastructure | `infrastructure.yml` | ~10 min | AWS networking and hosts via Terraform |
 | 2. Services | `services.yml` | ~15 min | DNS, Kerberos, database, proxy, monitoring |
 | 3. Cloudera Manager | `cms.yml` | ~10 min | CM server, agents, AutoTLS, LDAP |
-| 4. Cluster | `*-cluster.yml` | ~15 min | CDP Runtime cluster deployment |
+| 4. Base Cluster | `*-cluster.yml` | ~30 min | CDP Base cluster deployment |
+| 5. ECS Cluster | `*-cluster.yml` | ~15 min | Embedded Container Service cluster deployment |
 
 ## Run All Stages
 
 To deploy everything in one command:
 
 ```bash
-ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml playbooks/cms.yml playbooks/ozone-cluster.yml -e @config.yml
+ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml playbooks/cms.yml playbooks/ozone-cluster.yml playbooks/ecs-cluster.yml -e @config.yml
 ```
 
-Total runtime: approximately **40–50 minutes**.
+Total runtime: approximately **60–90 minutes**.
 
 ## Run Stages Individually
 
@@ -55,24 +56,17 @@ Install Cloudera Manager:
 ansible-navigator run playbooks/cms.yml -e @config.yml
 ```
 
-Deploy cluster:
+Deploy Base cluster:
 
 ```bash
 ansible-navigator run playbooks/ozone-cluster.yml -e @config.yml
 ```
 
-## Available Cluster Topologies
+Deploy ECS cluster:
 
-After stages 1–3, deploy any one of the following clusters:
+```bash
+ansible-navigator run playbooks/ecs-cluster.yml -e @config.yml
+```
 
-| Playbook | Description |
-|----------|-------------|
-| `ozone-cluster.yml` | Ozone-enabled base cluster |
-| `kafka-cluster.yml` | Kafka base cluster |
-| `flink-cluster.yml` | Flink base cluster |
-| `nifi-cluster.yml` | NiFi (CFM) cluster |
-| `nifi2.0-cluster.yml` | NiFi 2.0 cluster |
-| `csa-cluster.yml` | CSA (Cloudera Streaming Analytics) full cluster |
-
-!!! tip
-    The cluster playbooks are designed to be run after the base deployment (infrastructure + services + CMS).
+!!! tip "Next: Data Services"
+    Once the ECS Control Plane is deployed, you can optionally provision Cloudera data services such as Cloudera AI, Data Engineering, and Data Warehouse. These are not part of the core deployment stages — see [Data Services](data-services.md) for details.

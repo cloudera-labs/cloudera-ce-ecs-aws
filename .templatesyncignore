@@ -26,23 +26,11 @@
 :!playbooks/pause.yml
 :!playbooks/resume.yml
 
-# Playbooks (base)
-:!playbooks/kafka-cluster.yml
-:!playbooks/flink-cluster.yml
-:!playbooks/nifi-cluster.yml
-:!playbooks/nifi2.0-cluster.yml
-:!playbooks/csa-cluster.yml
-
 # Playbooks (ECS)
 :!playbooks/ecs-cluster.yml
 :!playbooks/cai-workbench.yml
 :!playbooks/cde-service.yml
 :!playbooks/cdw-service.yml
-
-# Playbooks (onenode)
-:!playbooks/one-node-cluster.yml
-:!playbooks/post-cluster.yml
-:!playbooks/efm-setup.yml
 
 # Templates (all topologies)
 :!playbooks/templates/cloudera_manager.caddyfile.j2
@@ -56,6 +44,7 @@
 
 # Templates (base, onenode)
 :!playbooks/templates/grafana.caddyfile.j2
+:!playbooks/templates/grafana_ldap.toml.j2
 :!playbooks/templates/prometheus.caddyfile.j2
 
 # Templates (ECS)
@@ -72,6 +61,7 @@
 :!tf_cluster_aws/outputs.tf
 :!tf_cluster_aws/vpc.tf
 :!tf_cluster_aws/ssh.tf
+:!tf_cluster_aws/ssh_config.tf
 :!tf_cluster_aws/network.tf
 :!tf_cluster_aws/hosts_common.tf
 :!tf_cluster_aws/inventory.tf
@@ -79,14 +69,9 @@
 # Terraform (base, ECS)
 :!tf_cluster_aws/hosts_base.tf
 
-# Terraform (base)
-:!tf_cluster_aws/pricing.tf
 
 # Terraform (ECS)
 :!tf_cluster_aws/hosts_ecs.tf
-
-# Terraform (onenode)
-:!tf_cluster_aws/hosts_onenode.tf
 
 # Shared config (all topologies)
 :!inventory.yml

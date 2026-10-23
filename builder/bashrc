@@ -17,4 +17,4 @@ if [ -f /etc/bashrc ]; then
 . /etc/bashrc
 fi
 
-PS1="\[\e[1;38;5;202m\]cldr-ce ${BUILD_VER} \[\e[0m\]\\$> "
+PS1="\[\e[1;38;5;202m\]cldr-ce-ecs ${BUILD_VER} \[\e[0m\]\\$> "

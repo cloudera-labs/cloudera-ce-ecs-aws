@@ -31,16 +31,16 @@
     ecs_env_name: ecs
   tasks:
 
-    # - name: Assert that Control Plane is reachable
-    #   block:
-    #     - name: Confirm Control Plane Authentication
-    #       cloudera.cloud.iam_user_info:
-    #         current_user: true
-    #         verify_tls: "{{ not(caddy_self_signed is defined and caddy_self_signed) }}" # NOTE: See above
-    #   rescue:
-    #     - name: Print error if Authentication is unsuccessful
-    #       fail:
-    #         msg: "Authentication to ECS control plane failed. Please check your credentials, and network connectivity to the control plane."
+    - name: Assert that Control Plane is reachable
+      block:
+        - name: Confirm Control Plane Authentication
+          cloudera.cloud.iam_user_info:
+            current_user: true
+            verify_tls: "{{ not(caddy_self_signed is defined and caddy_self_signed) }}" # NOTE: See above
+      rescue:
+        - name: Print error if Authentication is unsuccessful
+          fail:
+            msg: "Authentication to ECS control plane failed. Please check your credentials, and network connectivity to the control plane."
 
     - name: Fetch FreeIPA CA certificate
       ansible.builtin.uri:
@@ -60,27 +60,28 @@
           -d '{{ ldap_provider_config | to_json }}'
           --insecure
       vars:
+        base_dn: "{{ dns_domain.split('.') | map('regex_replace', '^(.*)$', 'dc=\\1') | join(',') }}"
         ldap_provider_config:
           ldapProviderName: "cm-ldap"
           skipGroupSyncOnLogin: false
           url: "ldaps://{{ groups['freeipa'] | first }}"
           useAnonymousBind: "bind_dn_password"
-          userSearchBase: "cn=users,cn=accounts,dc=cldr,dc=internal"
+          userSearchBase: "cn=users,cn=accounts,{{ base_dn }}"
           userSearchFilter: "(uid={0})"
           usernameMappingAttribute: uid
           emailMappingAttribute: ""
-          groupSearchBase: "cn=groups,cn=accounts,dc=cldr,dc=internal"
+          groupSearchBase: "cn=groups,cn=accounts,{{ base_dn }}"
           groupSearchFilter: "(&(member={0})(objectClass=posixgroup)(! ( | (cn=admins) (cn=ipausers) ) ))"
           tlsCaCertificates:
             - "{{ __freeipa_ca_cert_response.content }}"
-          bindDn: "uid=admin,cn=users,cn=accounts,dc=cldr,dc=internal"
+          bindDn: "uid=admin,cn=users,cn=accounts,{{ base_dn }}"
           bindPassword: "{{ freeipa_password | default(lookup('env', 'IPA_PASSWORD', default='')) }}"
 
     - name: Enable CDE service
       cloudera.cloud.de:
         env: "{{ ecs_env_name }}"
         name: "{{ name_prefix }}-de"
-        instance_type: 'private' 
+        instance_type: 'private'
         cpu_requests: 24
         memory_requests: '64Gi'
         resource_pool: "root.{{ ecs_env_name }}.cde"
@@ -142,8 +143,3 @@
     ipaadmin_password: "{{ freeipa_password | default(lookup('env', 'IPA_PASSWORD', default='Undefined')) }}"
     unenrolled_hostname: "{{ hostvars['localhost']['service_id'] }}"
     unenrolled_cert_profile: "wildcard" # Assumes a 'wildcard' profile exists
-
-# TODO: Install wildcard cert for the CDE service
-# See https://docs.cloudera.com/data-engineering/1.5.5/enable-data-engineering/topics/cde-on-premises-control-plane-certificates-services.html
-
-# TODO: Add permissions to Environment Role for User/Group to access CDE

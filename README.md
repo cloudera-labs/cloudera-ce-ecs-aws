@@ -14,30 +14,30 @@
 
 # Cloudera On Premise Community Edition
 
-Ansible + Terraform automation for deploying Cloudera Private Cloud on AWS. Constructs a ring-fenced, 10-node cluster accessible via SSH and reverse HTTPS proxies.
+Ansible + Terraform automation for deploying Cloudera Private Cloud on AWS. Constructs a ring-fenced, 10-node Base cluster and 4-node ECS cluster accessible via SSH and reverse HTTPS proxies.
 
 - Self-contained DNS, Kerberos, database, and TLS services
 - ACME-managed TLS termination on the reverse proxy
 - Cloudera Manager with Kerberos and Auto-TLS
-- Multiple cluster topologies (Ozone, Kafka, Flink, NiFi, CSA, ECS)
+- Ozone-enabled base and ECS cluster deployments
 - Fully idempotent — run repeatedly with no unintended state changes
 
 ## Quick Start
 
 ```bash
 cp config-template.yml config.yml    # Set name_prefix, infra_region, common_password, owner
-ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml playbooks/cms.yml playbooks/ozone-cluster.yml -e @config.yml
+ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml playbooks/cms.yml playbooks/ozone-cluster.yml playbooks/ecs-cluster.yml -e @config.yml
 ```
 
 ## Documentation
 
-> **[View the full documentation site](<YOUR_DOCS_SITE_URL>)**
+> **[View the full documentation site](https://cloudera-labs.github.io/cloudera-ce-ecs-aws/)**
 
 Setup instructions, configuration reference, and operational guides are also available in the **[docs/](docs/)** directory.
 
 | Section | Description |
 |---------|-------------|
 | [Getting Started](docs/getting-started/) | Prerequisites, credentials, configuration |
-| [Deployment](docs/deployment/) | Infrastructure, services, Cloudera Manager, clusters |
+| [Deployment](docs/deployment/) | Infrastructure, services, Cloudera Manager, clusters, and optional [data services](docs/deployment/data-services.md) (AI, Data Engineering, Data Warehouse) |
 | [Operations](docs/operations/) | Accessing endpoints, SSH, tear down |
 | [Reference](docs/reference/) | Architecture, execution environment |

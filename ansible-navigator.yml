@@ -39,11 +39,10 @@ ansible-navigator:
         - AWS_SECRET_ACCESS_KEY
         - AWS_SESSION_TOKEN
         - CDP_LICENSE_FILE
-        # ECS topology: uncomment these for CDP CLI access
-        # - CDP_PROFILE
-        # - CDP_ACCESS_KEY_ID
-        # - CDP_PRIVATE_KEY
-        # - CDP_ENDPOINT_URL
+        # Uncomment these for CDP ECS Control Plane access
+        - CDP_ACCESS_KEY_ID
+        - CDP_PRIVATE_KEY
+        - CDP_ENDPOINT_URL
         # Optional pre-existing SSH key
         # - SSH_PRIVATE_KEY_FILE
       set:
@@ -53,15 +52,12 @@ ansible-navigator:
         ANSIBLE_DEPRECATION_WARNINGS: false
         ANSIBLE_HOST_KEY_CHECKING: false
         ANSIBLE_SSH_RETRIES: 10
-    image: <YOUR_EE_IMAGE>:latest
+    image: ghcr.io/cloudera-labs/cloudera-ce-ecs-aws:latest
     pull:
       policy: tag
     volume-mounts:
       - src: "${CDP_LICENSE_FILE}"
         dest: "${CDP_LICENSE_FILE}"
-      # ECS topology: uncomment for CDP CLI credentials
-      # - src: "~/.cdp"
-      #   dest: "/runner/.cdp"
       # Optional pre-existing SSH key
       # - src: "${SSH_PRIVATE_KEY_FILE}"
       #   dest: "${SSH_PRIVATE_KEY_FILE}"

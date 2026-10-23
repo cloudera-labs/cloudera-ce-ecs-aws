@@ -21,5 +21,7 @@ locals {
     sdx     = module.sdx
     masters = module.base_masters
     workers = module.base_workers
+    ecs_masters = module.ecs_masters
+    ecs_workers = module.ecs_workers    
   }
 }

@@ -14,7 +14,7 @@
 
 # Cloudera On Premise Community Edition
 
-This project provides Ansible + Terraform automation for deploying Cloudera Private Cloud on AWS infrastructure. It constructs a ring-fenced, 10-node cluster accessible only via SSH and reverse HTTPS proxies.
+This project provides Ansible + Terraform automation for deploying Cloudera Private Cloud on AWS infrastructure. It constructs a ring-fenced, 10-node Base cluster and 4-node ECS cluster accessible via SSH and reverse HTTPS proxies.
 
 ## What's Included
 
@@ -22,18 +22,12 @@ This project provides Ansible + Terraform automation for deploying Cloudera Priv
 - ACME-managed TLS termination on the reverse proxy
 - Cloudera Manager Server and agents installed and configured
 - Kerberos and Auto-TLS configuration
-- Multiple cluster topology options:
-    - Ozone-enabled base cluster
-    - Kafka cluster
-    - Flink cluster
-    - NiFi (CFM) cluster
-    - NiFi 2.0 cluster
-    - CSA (Cloudera Streaming Analytics) full cluster
-    - ECS (Experience Cluster Services) with Data Services
+- Ozone-enabled base cluster
+- Embedded Container Service (ECS) cluster deployment with optional Data Services enablement
 
 ## Architecture Overview
 
-![Network Architecture](assets/images/simple-network.jpg)
+![Network Architecture](assets/images/ecs-aws-infrastructure.png)
 
 ## Design Principles
 
@@ -52,15 +46,15 @@ This project provides Ansible + Terraform automation for deploying Cloudera Priv
 Clone the project to your workspace:
 
 ```bash
-git clone https://<YOUR_GIT_HOST>/<YOUR_REPO_NAME>.git
-cd <YOUR_REPO_NAME_ONLY>
+git clone https://github.com/cloudera-labs/cloudera-ce-ecs-aws.git
+cd cloudera-ce-ecs-aws
 ```
 
 
 Run all deployment playbooks
 
 ```bash
-ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml playbooks/cms.yml playbooks/ozone-cluster.yml -e @config.yml
+ansible-navigator run playbooks/infrastructure.yml playbooks/services.yml playbooks/cms.yml playbooks/ozone-cluster.yml playbooks/ecs-cluster.yml -e @config.yml
 ```
 
-The full deployment takes approximately 40–50 minutes. See [Deployment Overview](deployment/README.md) for details.
+The full deployment takes approximately 60–90 minutes. See [Deployment Overview](deployment/README.md) for details.

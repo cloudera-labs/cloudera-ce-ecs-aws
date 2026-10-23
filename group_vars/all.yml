@@ -29,14 +29,14 @@
 # Version is what is found in the support matrix, e.g. label
 # Release is what is found in the archive, e.g. URL path
 
-cloudera_manager_version: 7.13.2
-cloudera_manager_release: "7.13.2.6" # e.g. "7.13.1.400"
+cloudera_manager_version: "7.13.2 SP2"
+cloudera_manager_release: "7.13.2.20000" # e.g. "7.13.1.400"
 
-cloudera_runtime_version: 7.3.2 # e.g. "7.1.9 SP1"
-cloudera_runtime_release: "7.3.2.0" # e.g. "7.1.9.1000"
+cloudera_runtime_version: "7.3.2 SP2" # e.g. "7.1.9 SP1"
+cloudera_runtime_release: "7.3.2.20000" # e.g. "7.1.9.1000"
 
 cloudera_parcels:
-  CDH: "7.3.2-1.cdh7.3.2.p0.77083870"
+  CDH: "7.3.2-1.cdh7.3.2.p20000.83281140"
 cloudera_parcel_csds: []
 cloudera_parcel_repo_urls:
   - https://archive.cloudera.com/p/cdh7/{{ cloudera_runtime_release }}/parcels/
@@ -54,8 +54,8 @@ ecs_parcel_repo_url: https://archive.cloudera.com/p/cdp-pvc-ds/{{ ecs_version }}
 
 jdk_version: 17
 caddy_self_signed: true
-kerberos_realm: "CLDR.INTERNAL" # The Kerberos realm managed by the local FreeIPA server
-dns_domain: "cldr.internal" # Non-routable, internal domain managed by the local FreeIPA server
+kerberos_realm: "CLDR.ARPA" # The Kerberos realm managed by the local FreeIPA server
+dns_domain: "cldr.arpa" # Non-routable, internal domain managed by the local FreeIPA server
 public_domain: "nip.io" # Externally routable domain for reverse proxy endpoints 
 
 ### Feature toggles (see services.yml for usage)
@@ -103,6 +103,16 @@ external_auth_user_mappings:
     type: LDAP
     auth_roles:
       - ROLE_OPERATOR
+
+### Grafana Authentication with FreeIPA
+grafana_bind_password: "{{ common_password }}"
+grafana_auth_groups:
+  - name: "grafana-admins"
+    desc: "Full admin access in Grafana"
+  - name: "grafana-editors"
+    desc: "Dashboard editing access in Grafana"
+  - name: "grafana-viewers"
+    desc: "Read-only access in Grafana"
 
 # Pin FreeIPA package to overcome missing Samba package issue
 freeipa_client_packages:

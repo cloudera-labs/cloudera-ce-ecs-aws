@@ -25,6 +25,8 @@ The infrastructure playbook provisions all AWS resources using Terraform.
     - 1 Services host (FreeIPA, PostgreSQL, pgAdmin)
     - 3 Masters
     - 4 Workers
+    - 1 ECS Master
+    - 3 ECS Workers
     - 1 Cloudera Manager host
     - 1 SDX/Knox host
 - **SSH keypair** (generated or user-provided)
@@ -62,6 +64,8 @@ Edit the host module inputs directly in the `tf_cluster_aws/hosts_*.tf` files. E
 | `hosts_base.tf` | `sdx` | `t3a.xlarge` | 1 | 500 GB |
 | `hosts_base.tf` | `base_masters` | `t3a.xlarge` | 3 | 250 GB |
 | `hosts_base.tf` | `base_workers` | `t3a.xlarge` | 4 | 250 GB |
+| `hosts_ecs.tf` | `ecs_masters` | `r5a.4xlarge` | 1 | 600 GB |
+| `hosts_ecs.tf` | `ecs_workers` | `r5a.4xlarge` | 3 | 500 GB |
 
 For example, to increase master nodes to `r5a.xlarge` with 500 GB root volumes, edit `tf_cluster_aws/hosts_base.tf`:
 
@@ -76,3 +80,14 @@ module "base_masters" {
   }
 }
 ```
+
+!!! tip "Scaling ECS Workers for multiple data services"
+    The default 3 ECS Workers support only one [data service](data-services.md) at a time. To run several data services concurrently, increase the `quantity` of the `ecs_workers` module in `tf_cluster_aws/hosts_ecs.tf`:
+
+    ```hcl
+    module "ecs_workers" {
+      # ...
+      instance_type = "r5a.4xlarge"
+      quantity      = 6
+    }
+    ```

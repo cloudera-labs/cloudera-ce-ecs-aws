@@ -32,8 +32,6 @@ collections:
   # AWS
   - name: amazon.aws
     version: 9.5.1
-  - name: community.aws
-    version: 9.3.0
 
   # Kubernetes (needed for ECS topology)
   - name: kubernetes.core

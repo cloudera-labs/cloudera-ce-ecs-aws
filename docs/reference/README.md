@@ -32,7 +32,9 @@ The deployment creates a ring-fenced VPC with public and private subnets:
 │  │  │  (Caddy)   │  │    │  │FreeIPA  │  │ Workers (x4)   │  │ │
 │  │  │  EIP       │  │    │  │Postgres │  │ CMS            │  │ │
 │  │  └────────────┘  │    │  │pgAdmin  │  │ SDX/Knox       │  │ │
-│  │                  │    │  └─────────┘  └────────────────┘  │ │
+│  │                  │    │  └─────────┘  │ ECS Master (x1)│  │ │
+│  │                  │    │               │ ECS Workers (x3)│  │ │
+│  │                  │    │               └────────────────┘  │ │
 │  └──────────────────┘    └────────────────────────────────────┘ │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -40,7 +42,7 @@ The deployment creates a ring-fenced VPC with public and private subnets:
 
 - **Gateway** — only host with a public IP (Elastic IP); runs Caddy reverse proxy and SSH jump host
 - **Services** — FreeIPA (DNS + Kerberos + CA), PostgreSQL, pgAdmin, optionally Prometheus/Grafana
-- **Cluster hosts** — accessible only via the gateway proxy
+- **Cluster hosts** — base cluster and ECS hosts, accessible only via the gateway proxy
 
 ## Ansible Inventory Groups
 
@@ -52,9 +54,9 @@ deployment:
       base_workers:    # Worker nodes
       sdx:             # SDX + Knox Gateway
       knox_gateway:    # (same hosts as sdx)
-    ecs:               # (empty for base topology)
-      ecs_masters:
-      ecs_workers:
+    ecs:
+      ecs_masters:     # ECS Server (control plane)
+      ecs_workers:     # ECS Agents
   cloudera_manager:    # CM Server host
 
 proxied_servers:       # All internal hosts (SSH via jump proxy)
