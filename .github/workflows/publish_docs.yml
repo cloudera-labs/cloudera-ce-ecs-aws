@@ -23,7 +23,7 @@ permissions:
   id-token: write
 jobs:
   deploy:
-    if: github.repository != 'cloudera-labs/cloudera-ce-aws-template' && github.repository == '<YOUR_REPO_NAME>'
+    if: github.repository != 'cloudera-labs/cloudera-ce-aws-template' && github.repository == 'cloudera-labs/cloudera-ce-ecs-aws'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
