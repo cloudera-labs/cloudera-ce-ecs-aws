@@ -43,10 +43,10 @@ cloudera_parcel_repo_urls:
   - https://archive.cloudera.com/cdh7/{{ cloudera_runtime_release }}/parcels/
 
 ### ECS-specific versions (only used when ecs_masters group is populated)
-# ECS 1.5.5 SP3
-ecs_version: 1.5.5-h3000
+# ECS 1.5.5 SP4
+ecs_version: 1.5.5-h40000
 ecs_parcels:
-  ECS: 1.5.5-h3000-b276-ecs-1.5.5-h3000-b276.p0.79854104
+  ECS: 1.5.5-h40000-b255-ecs-1.5.5-h40000-b255.p0.83511773
 ecs_parcel_repo_url: https://archive.cloudera.com/p/cdp-pvc-ds/{{ ecs_version }}/parcels/
 
 # Define the SSH private key file or have one generated for you

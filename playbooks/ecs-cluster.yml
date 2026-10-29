@@ -280,6 +280,8 @@
         remote_repo_url: "{{ ecs_parcel_repo_url | regex_replace('parcels/.*', '') }}"
         type: embedded
         control_plane_config:
+          Container:
+            Id: "1000001"
           ContainerInfo:
             Mode: public
             CopyDocker: false
