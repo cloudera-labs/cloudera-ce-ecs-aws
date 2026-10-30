@@ -82,7 +82,7 @@
         env: "{{ ecs_env_name }}"
         name: "{{ name_prefix }}-de"
         instance_type: 'private'
-        cpu_requests: 24
+        cpu_requests: 26
         memory_requests: '64Gi'
         resource_pool: "root.{{ ecs_env_name }}.cde"
         verify_tls: "{{ not(caddy_self_signed is defined and caddy_self_signed) }}" # NOTE: See above
